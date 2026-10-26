@@ -804,6 +804,14 @@ const Importer = {
   parsed: null,
   fileMeta: null,
   manualType: null,
+  /* 用户是否在 #imSet 里手动选过套别：选过就以用户为准，正文证据不再覆盖 */
+  manualSetNo: null,
+  /* 导入后听力自动补全的后台队列/计时器（见 _queueListeningAutoFill） */
+  _autoFillQueue: null,
+  _autoFillTimer: null,
+  _autoFillRunning: false,
+  _autoFillBusyRetries: 0,
+  listeningAutoFillReports: null,
   typeFromFilename: false,
 
   /* ---------- 文件名解析：自动识别年份 / 场次 / 类型 ---------- */
@@ -1055,6 +1063,8 @@ confidence 必须为 0 到 1 的数字。evidence 只摘录或概述文档中可
         continue;
       }
       Object.assign(meta, resolvedType);
+      /* 批量导入时每份文件用自己的正文找套别，不能套用上一份的结论 */
+      self._autoDetectSetNo(meta, text);
 
       drawProgress(`AI 统一识别听力/阅读/写作：${f.name} …`);
       const savedTarget = self.target;
@@ -1208,6 +1218,8 @@ confidence 必须为 0 到 1 的数字。evidence 只摘录或概述文档中可
       App.toast('上一份试卷还在导入中，请等它完成后再导入下一份', '');
       return;
     }
+    /* 每次打开弹窗都重置“用户手选套别”状态，避免上一次的选择影响这一次。 */
+    this.manualSetNo = null;
     if (this.target !== target) {
       this.raw = '';
       this.fileMeta = null;
@@ -1305,6 +1317,9 @@ A) ...  B) ...  C) ...  D) ...">${esc(this.raw || '')}</textarea>
         const session = $('#imSession', b);
         session.innerHTML = this._sessionOptions(e.target.value, session.value);
       };
+      /* 记录用户是否亲手动过套别下拉框：动过就以用户为准，正文证据不再覆盖 */
+      const setSelB = $('#imSet', b);
+      if (setSelB) setSelB.onchange = e => { this.manualSetNo = Number(e.target.value) || null; };
       $('#imFile', b).onchange = e => this._readFile(e.target.files[0], $('#imText', b), $('#imStat', b));
 
       // 批量导入整个文件夹
@@ -1361,10 +1376,15 @@ A) ...  B) ...  C) ...  D) ...">${esc(this.raw || '')}</textarea>
     const head = all.slice(0, 6000);
     const ym = head.match(/(20\d{2})\s*年\s*(\d{1,2})\s*月/);
     if (ym) { meta.year = Number(ym[1]); meta.session = String(Number(ym[2])).padStart(2, '0'); }
-    const set = head.match(/第\s*([一二三四五六1-6])\s*套/);
-    if (set) {
-      const cn = { '一': 1, '二': 2, '三': 3, '四': 4, '五': 5, '六': 6 };
-      meta.setNo = cn[set[1]] || Number(set[1]) || meta.setNo;
+    /* 套别证据统一走 _detectSetEvidence：它会排除「与第一套相同 / 未重复显示」这类
+     * 在指别的套的说明。旧版这里直接 match「第X套」，会把听力说明里的“第一套”误当本卷套别。*/
+    const setHint = this._detectSetEvidence(head);
+    if (setHint.setNo) {
+      meta.setNo = setHint.setNo;
+      meta.setNoSource = 'text';
+      meta.setEvidence = setHint.evidence;
+    } else if (setHint.conflicts && setHint.conflicts.length > 1) {
+      meta.setEvidenceConflicts = setHint.conflicts;
     }
     const listenNote = head.match(/[^\n]{0,40}(?:未重复显示|与第[一二三四五]{1,2}套?相同|只考两套|只考[一二两]套)[^\n]{0,60}/);
     if (listenNote) {
@@ -1374,6 +1394,73 @@ A) ...  B) ...  C) ...  D) ...">${esc(this.raw || '')}</textarea>
     }
     meta.hasReading = /Reading\s+Comprehension|Section\s+[BC]|阅读理解/i.test(all);
     meta.readingSections = (all.match(/Section\s+[BC]\b/gi) || []).length;
+    return meta;
+  },
+
+  /**
+   * 从正文找「第X套 / Set X」这类**明确**套别证据。
+   *
+   * 为什么不能只用文件名：同一个月的四六级真题常以「2023年12月六级真题.pdf」命名，
+   * 套别只印在正文第一页（第2套 / 本套试卷）。但正文里也有「本套听力与第一套相同，未重复显示」
+   * 这类**在指别的套**的说明，不能当成当前卷的套别；证据互相冲突（第1套…第3套都出现）时也不猜，
+   * 宁可留「未标注套别」让用户自己选，避免把两套卷子归到同一套。
+   * @returns {{setNo:?number, evidence:string, conflicts:number[], hits:number}}
+   */
+  _detectSetEvidence(text) {
+    const src = String(text || '');
+    const cnNum = { '一': 1, '二': 2, '三': 3, '四': 4, '五': 5 };
+    const hits = [];
+    const push = (num, index, matched) => {
+      if (!num) return;
+      /* 说明性措辞只会在**同一行/同一句**里指向别的套（如「本套听力与第一套相同，未重复显示」）。
+       * 只检查同一行：既排除这些说明，又不会把相邻行标题里的真套别误杀
+       * （原卷第一页常是「第2套」标题行 + 紧跟着一句听力说明）。*/
+      const lineStart = src.lastIndexOf('\n', index) + 1;
+      const lineEndRaw = src.indexOf('\n', index + matched.length);
+      const line = src.slice(lineStart, lineEndRaw < 0 ? src.length : lineEndRaw);
+      const before = src.slice(Math.max(0, index - 2), index);
+      if (/^\s*与/.test(before)) return;                    // 「与第一套相同」→ 在指别的套
+      if (/未重复|相同|只考|不重复/.test(line)) return;
+      hits.push({ num: num, index: index, text: String(matched || '').trim() });
+    };
+    let m;
+    const reSetNo = /第\s*([一二三四五1-5])\s*套/g;
+    while ((m = reSetNo.exec(src))) push(cnNum[m[1]] || Number(m[1]) || null, m.index, m[0]);
+    const reSet = /\bSet\s*([1-5])\b/gi;
+    while ((m = reSet.exec(src))) push(Number(m[1]) || null, m.index, m[0]);
+    const nums = [...new Set(hits.map(h => h.num))].sort((a, b) => a - b);
+    if (nums.length !== 1) {
+      return { setNo: null, evidence: '', conflicts: nums, hits: hits.length };
+    }
+    const first = hits.find(h => h.num === nums[0]);
+    const context = src.slice(Math.max(0, first.index - 24), first.index + first.text.length + 24)
+      .replace(/\s+/g, ' ').trim();
+    return { setNo: nums[0], evidence: '正文「' + first.text + '」：' + context, conflicts: [], hits: hits.length };
+  },
+
+  /** 把正文套别证据写进 meta（仅在用户没手选、证据唯一时生效；结果记进 paper 供 UI/报告展示）。 */
+  _autoDetectSetNo(meta, text) {
+    if (!meta) return meta;
+    if (this.manualSetNo) {
+      if (meta.setNo) meta.setNoSource = 'manual';
+      return meta;
+    }
+    const found = this._detectSetEvidence(text);
+    if (found.setNo) {
+      meta.setEvidence = found.evidence;
+      if (!meta.setNo) {
+        meta.setNo = found.setNo;
+        meta.setNoSource = 'text';
+      } else if (Number(meta.setNo) === Number(found.setNo)) {
+        meta.setNoSource = 'text';       // 文件名与正文互相印证，可以放心标成识别结果
+      } else {
+        meta.setNoSource = 'given';      // 文件名/下拉框与正文冲突：保留用户看到的值，只记录冲突
+        meta.setEvidenceConflict = found.setNo;
+      }
+    } else {
+      if (found.conflicts && found.conflicts.length > 1) meta.setEvidenceConflicts = found.conflicts;
+      if (meta.setNo) meta.setNoSource = meta.setNoSource || 'given';
+    }
     return meta;
   },
 
@@ -1395,6 +1482,17 @@ A) ...  B) ...  C) ...  D) ...">${esc(this.raw || '')}</textarea>
       this.raw = text;
       // 单文件自动识别年份、场次与类型；类型仍会单独交给 AI 核验。
       const m = this._detectPaperMeta(text, this.parseName(file.name));
+      /* 文件名没写套别时，正文第一页常印着「第X套」：用户没手选且证据唯一时填进套别下拉框 */
+      if (!this.manualSetNo && !m.setNo) {
+        const setHint = this._detectSetEvidence(text);
+        if (setHint.setNo) {
+          m.setNo = setHint.setNo;
+          m.setNoSource = 'text';
+          m.setEvidence = setHint.evidence;
+        } else if (setHint.conflicts && setHint.conflicts.length > 1) {
+          m.setEvidenceConflicts = setHint.conflicts;
+        }
+      }
       const form = stat.closest('.modal-b');
       const type = examTypeKey(m.level);
       const fileKey = await this._fileKey(file);
@@ -1410,10 +1508,13 @@ A) ...  B) ...  C) ...  D) ...">${esc(this.raw || '')}</textarea>
         const session = $('#imSession', form);
         if (session) session.innerHTML = this._sessionOptions($('#imType', form).value, m.session || session.value);
         const setSel = $('#imSet', form);
-        if (setSel) setSel.value = m.setNo || 0;
+        /* 用户已经手选过套别时不要用文件名/正文的识别结果覆盖它 */
+        if (setSel && !this.manualSetNo) setSel.value = m.setNo || 0;
       }
       stat.innerHTML = `✓ 已读取 <b>${esc(file.name)}</b>：${text.length} 字符，约 ${text.split(/\s+/).length} 词。
         ${(m.year || type || m.setNo) ? `<br>文件名识别：<b>${m.year ? m.year + ' 年' : ''}${m.session ? ' ' + (['06', '12'].includes(m.session) ? Number(m.session) + ' 月' : m.session) : ''}${m.setNo ? ' · 第 ' + m.setNo + ' 套' : ''}${type ? ' · ' + levelLabel(type) : ''}</b>；类型仍待 AI 核验。${m.module ? ' · ' + moduleName(m.module) : ''}` : '<br>未从文件名识别考试类型；将尝试由 AI 根据正文判断。'}
+        ${m.setEvidence ? `<br>套别依据：${esc(m.setEvidence)}` : ''}
+        ${m.setEvidenceConflicts && m.setEvidenceConflicts.length > 1 ? `<br><span style="color:var(--warn)">⚠ 正文同时出现第 ${m.setEvidenceConflicts.join('、')} 套的套别线索，已按未标注处理，请手动选择</span>` : ''}
         ${dup ? `<br><span style="color:var(--err)">⚠ 这个文件/这套题已导入过（${dup.year ? dup.year + ' 年 ' : ''}${dup.session ? sessionLabel(dup.session) : ''}${dup.setNo ? ' · 第 ' + dup.setNo + ' 套' : ''}）。继续导入会被忽略。</span>` : ''}
         ${text.length > 20000 ? '<br><span style="color:var(--warn)">内容较长，AI 切分可能需要 1-2 分钟。</span>' : ''}`;
     } catch (e) {
@@ -1508,6 +1609,8 @@ A) ...  B) ...  C) ...  D) ...">${esc(this.raw || '')}</textarea>
       return;
     }
     Object.assign(meta, resolvedType);
+    /* 套别自动识别放在类型核验之后：此时用户选择已确定，正文也修过 PDF 空格 */
+    this._autoDetectSetNo(meta, this.raw);
     showProgress();
     await wait(120);
     phase('正在识别听力、阅读与写作题目…', 30);
@@ -1554,7 +1657,9 @@ A) ...  B) ...  C) ...  D) ...">${esc(this.raw || '')}</textarea>
         <div class="tipbox">
           考试类型：<b>${levelLabel(meta.type)}</b> · ${meta.typeVerification === 'ai-verified' ? 'AI 已依据文档正文核验' : '类型待核验'}<br>
           ${meta.typeEvidence && meta.typeEvidence.length ? `核验依据：${esc(meta.typeEvidence.join('；'))}<br>` : ''}
-          年份：<b>${meta.year}</b>　场次：<b>${meta.session === 'other' ? '不分卷' : sessionLabel(meta.session)}</b>${meta.setNo ? '　套别：<b>第 ' + meta.setNo + ' 套</b>' : ''}<br>
+          年份：<b>${meta.year}</b>　场次：<b>${meta.session === 'other' ? '不分卷' : sessionLabel(meta.session)}</b>${meta.setNo ? '　套别：<b>第 ' + meta.setNo + ' 套</b>' + (meta.setNoSource === 'text' ? '（正文自动识别）' : '') : ''}<br>
+          ${meta.setEvidence ? `套别依据：${esc(meta.setEvidence)}<br>` : ''}
+          ${meta.sharedListeningFound ? `共用听力：识别到 <b>${meta.sharedListeningFound}</b> 篇与同月其它套听力相同，已自动补全题干<br>` : ''}
           本次入库：<b>${Object.entries(saved.byModule).map(([m, count]) => moduleName(m) + ' ' + count + ' 个条目 / ' + (qMap[m] || 0) + ' 题').join('　') || '无'}</b><br>
           <span class="hint">条目 = 听力材料/阅读篇目/写作题；题 = 具体小题数量。</span><br>
           ${meta.listeningNote ? '<div class="tipbox" style="margin-top:8px;background:var(--warn-l)"><b>本套听力未重复显示</b><br>' + esc(meta.listeningNote) + '<br>如第一/二套已导入同一听力，请到听力模块选择对应套别。</div>' : ''}
@@ -2207,6 +2312,9 @@ A) ...  B) ...  C) ...  D) ...">${esc(this.raw || '')}</textarea>
         const listenItem = completeImportedListeningItem(Object.assign({}, p, { __sourceText: rawText }));
         const rec = {
           id, year: base.year, session: base.session, setNo: meta.setNo || null, no,
+          /* 套别来源：用户手选 / 文件名 / 正文证据；导入报告与听力页据此说明依据 */
+          setNoSource: meta.setNoSource || '', setEvidence: meta.setEvidence || '',
+          setEvidenceConflict: meta.setEvidenceConflict || null,
           title: listenItem.title || '导入听力材料',
           // type 必须反映真题类别，否则导入的材料会出现在错误的页签里
           level: levelLabel(meta.type),
@@ -2309,21 +2417,40 @@ A) ...  B) ...  C) ...  D) ...">${esc(this.raw || '')}</textarea>
       n++;
     });
     this._saved = n;
+    /* 【同一套听力复用题干】同月不同套常共用同一段听力音频：一份 PDF 印了题干、另一份只印选项。
+     * 入库前按「题型 + 题目数 + 全部选项归一化文本」的指纹找同套篇目，题干完整就直接抄过来
+     * （纯本地、不联网），并把来源（同套第 X 套）写进补丁。afterImport 也会再试一次，
+     * 重复无害（补丁与 applyPatches 都只补缺的）。全部 try/catch：失败绝不影响导入成功。*/
+    if (targetOverride === 'listening' && added.length) {
+      try { this._linkSharedListening(added, meta); }
+      catch (e) { console.warn('[导入] 同套听力题干复用失败（不影响导入）', e); }
+    }
     /* 【只有题干、没有听力原文的卷子必须当场说清楚】
      * 四六级真题 PDF 常常只印题干与选项（Tapescripts 在别的文件里），
      * 这样导入的听力篇目 script 是空的：原文区一片空白、点播放没有声音、答案也无从判断。
-     * 过去导入是"成功"的、没有任何提示，用户只会在听力页看到一篇什么都不显示的材料
-     *（2024-12 六级那卷就是这样进来的）。这里导入当时就告知，并说明补救办法。*/
+     * 现在不再只报缺失：缺原文/缺题干的篇目会排进后台自动补全队列（联网搜索 + 核验），
+     * 所以这里说明「已在后台检索」，而不是让用户以为只能自己找。*/
     if (targetOverride === 'listening' && noScript && typeof App !== 'undefined' && App.toast) {
-      App.toast(noScript + ' 篇听力只有题干、没有原文（源文件里没有 Tapescripts）：'
-        + '导入后无法播放也无法判分，请把含「听力原文/录音材料」的文档一并导入', 'err');
+      const auto = this._autoFillAvailable();
+      App.toast(noScript + ' 篇听力只有题干、没有原文（源文件里没有 Tapescripts）。'
+        + (auto
+          ? '已自动在后台联网检索并核验原文，失败会给出原因。'
+          : '导入后无法播放也无法判分；可把含听力原文（Tapescripts）的文档一并导入补全'), auto ? '' : 'err');
     }
     /* 【持久化到磁盘】原来导入的篇目只塞进内存里的 Dict.content，
      * localStorage 只存得下 mineIds 这个"标记"，存不下正文，
      * 于是关掉页面正文就消失了（表现为"导入后没记录"）。
      * 这里把整个 content 对象写回 data/content/<target>.json，
      * 下次打开由 dict.js 的 fetch 自动读回来。*/
-    this._persist(targetOverride, added);
+    const persistDone = this._persist(targetOverride, added);
+    /* 【导入后的自动补全】只排队「缺原文或缺题干」的听力篇目；
+     * 用 setTimeout 延后启动，保证导入成功弹窗先出来，联网/AI 长任务不阻塞导入。*/
+    if (targetOverride === 'listening' && added.length) {
+      try {
+        const needs = added.filter(p => this._listeningNeedsAutoFill(p));
+        if (needs.length) this._queueListeningAutoFill(needs, persistDone);
+      } catch (e) { console.warn('[导入] 听力自动补全排队失败（不影响导入）', e); }
+    }
     return { n, q: qCount };
   },
 
@@ -2406,6 +2533,261 @@ A) ...  B) ...  C) ...  D) ...">${esc(this.raw || '')}</textarea>
         App.toast('保存失败：' + e2.message, 'err');
       }
     }
+  },
+
+  /* ---------- 导入后听力自动补全（原文 / 题干） ----------
+   * 背景（用户反馈）：导入的四六级 PDF 常常没有 Tapescript、也没印题干，
+   * 以前只能提示「导入 PDF 上没印」。现在把这些篇目交给 js/listening-autofill.js
+   * 在后台联网检索并核验；本模块只负责接线，不自己写 AI/网络逻辑。*/
+
+  /** window.ListeningAutoFill 是否可用（旧环境 / Node 测试环境没有时整段跳过）。 */
+  _autoFillAvailable() {
+    try {
+      return typeof window !== 'undefined' && !!window.ListeningAutoFill
+        && typeof window.ListeningAutoFill.afterImport === 'function';
+    } catch (e) { return false; }
+  },
+
+  /** 这篇听力是否需要后台补全：缺原文，或缺题干（只处理 cet4/cet6）。 */
+  _listeningNeedsAutoFill(paper) {
+    try {
+      if (!paper || (paper.type !== 'cet4' && paper.type !== 'cet6')) return false;
+      if (!Array.isArray(paper.script) || !paper.script.length) return true;
+      const LAF = typeof window !== 'undefined' && window.ListeningAutoFill;
+      if (LAF && typeof LAF.stemsComplete === 'function') return !LAF.stemsComplete(paper);
+      return (paper.qs || []).some(q => !q || !String(q.q || '').trim());
+    } catch (e) { return false; }
+  },
+
+  /**
+   * 同套听力识别：用 ListeningAutoFill.paperAudioKey（题型 + 题目数 + 全部选项归一化文本）
+   * 比对 Dict.content.listening.passages（含本批、历史导入与内置篇目）。
+   *  · 同 key 且题干完整的 donor → 立即复用题干并写补丁（纯本地，不联网）；
+   *  · donor 来自同月不同套 → 新篇标 sharedListening / sharedFromSet（与 _withSharedListening 语义一致）；
+   *  · 只有同 key、没有可用 donor → 只记 sameListeningAs，留给 afterImport 联网补。
+   * 返回本次标出的「共用听力」篇数（写进 meta 供导入报告展示）。
+   */
+  _linkSharedListening(added, meta) {
+    let marked = 0;
+    try {
+      const LAF = typeof window !== 'undefined' && window.ListeningAutoFill;
+      if (!LAF || typeof LAF.paperAudioKey !== 'function') return 0;
+      if (typeof Dict === 'undefined' || !Dict.content || !Dict.content.listening) return 0;
+      const pool = Dict.content.listening.passages || [];
+      const keyOf = p => { try { return String(LAF.paperAudioKey(p) || ''); } catch (e) { return ''; } };
+      const isComplete = p => {
+        try {
+          if (typeof LAF.stemsComplete === 'function') return !!LAF.stemsComplete(p);
+        } catch (e) { /* 落到下面的兜底判断 */ }
+        const qs = p && p.qs;
+        return Array.isArray(qs) && qs.length > 0 && qs.every(q => q && String(q.q || '').trim());
+      };
+      const sameMonth = (a, b) => !!a && !!b && !!Number(a.setNo) && !!Number(b.setNo)
+        && String(a.year) === String(b.year) && String(a.session) === String(b.session)
+        && Number(a.setNo) !== Number(b.setNo);
+      (added || []).forEach(paper => {
+        if (!paper) return;
+        try {
+          const key = keyOf(paper);
+          if (!key) return;
+          const others = pool.filter(x => x && x !== paper
+            && String(x.id || '') !== String(paper.id || '')
+            && keyOf(x) === key);
+          if (!others.length) return;
+          /* 同月不同套优先，其次按套别升序：保证每次都选到同一个 donor，补丁可复现 */
+          others.sort((a, b) => (sameMonth(paper, a) ? 0 : 1) - (sameMonth(paper, b) ? 0 : 1)
+            || (Number(a.setNo) || 99) - (Number(b.setNo) || 99));
+          paper.sameListeningAs = others.slice(0, 8).map(x => String(x.id || '')).filter(Boolean);
+          const monthDonor = others.find(x => sameMonth(paper, x)) || null;
+          if (monthDonor) {
+            paper.sharedListening = true;
+            paper.sharedFromSet = Number(monthDonor.setNo) || null;
+            marked++;
+          }
+          const donor = others.find(x => isComplete(x)) || null;
+          if (!donor || typeof LAF.copyStemsFromDonor !== 'function') return;
+          let missing = [];
+          try {
+            if (typeof LAF.missingStemIndexes === 'function') missing = LAF.missingStemIndexes(paper) || [];
+          } catch (e) { missing = []; }
+          const stems = {};
+          missing.forEach(idx => {
+            const q = (donor.qs || [])[idx];
+            /* 注意 stemIsPlaceholder 接收的是「题目对象」而不是题干字符串（见模块契约） */
+            if (!q || (typeof LAF.stemIsPlaceholder === 'function' && LAF.stemIsPlaceholder(q))) return;
+            const text = String(q.q || '').trim();
+            if (!text) return;
+            stems[idx] = text;
+          });
+          const copied = LAF.copyStemsFromDonor(paper, donor) || { filled: 0, fromSet: null };
+          if (!copied.filled) return;
+          paper.stemSource = 'set';
+          paper.stemFromSet = copied.fromSet != null ? copied.fromSet : (Number(donor.setNo) || null);
+          if (typeof LAF.writePatch === 'function' && typeof Store !== 'undefined' && Store) {
+            try {
+              LAF.writePatch(Store, String(paper.id || ''), {
+                stems,
+                stemSource: 'set',
+                stemFromSet: paper.stemFromSet,
+                at: new Date().toISOString(),
+              });
+              if (typeof Store.flush === 'function') Store.flush();
+            } catch (e) { console.warn('[导入] 同套题干补丁写入失败（不影响入库）', e); }
+          }
+        } catch (e) {
+          console.warn('[导入] 同套听力识别失败（忽略该篇）', e);
+        }
+      });
+    } catch (e) {
+      console.warn('[导入] 同套听力识别失败（忽略）', e);
+    }
+    if (meta && marked) meta.sharedListeningFound = marked;
+    return marked;
+  },
+
+  /**
+   * 把需要补全的听力篇目排进后台队列。
+   * 为什么排队而不是每篇直接调 afterImport：批量导入会在几秒内连续 _commit 多次，
+   * 而 afterImport 是模块级串行（并发时返回 busy）。排队合并成一次调用，既不会漏篇，
+   * 也不会同时打爆网络/AI。persistDone 一起排队，等落盘完成后再开始（补丁/目录才就绪）。
+   */
+  _queueListeningAutoFill(papers, persistDone) {
+    try {
+      if (!this._autoFillAvailable() || !papers || !papers.length) return;
+      this._autoFillQueue = (this._autoFillQueue || []).concat(papers);
+      if (persistDone) this._autoFillPersist = (this._autoFillPersist || []).concat([persistDone]);
+      this._scheduleListeningAutoFill(300);   // 先让导入成功弹窗渲染出来
+    } catch (e) { console.warn('[导入] 听力自动补全排队失败（不影响导入）', e); }
+  },
+
+  _scheduleListeningAutoFill(delay) {
+    if (this._autoFillTimer) return;
+    const self = this;
+    this._autoFillTimer = setTimeout(() => {
+      self._autoFillTimer = null;
+      self._flushListeningAutoFill();
+    }, Math.max(0, Number(delay) || 0));
+  },
+
+  /** 真正调用 afterImport（异步、不 await 阻塞导入）；全程 catch，失败只影响自动补全。 */
+  _flushListeningAutoFill() {
+    const LAF = typeof window !== 'undefined' && window.ListeningAutoFill;
+    if (!LAF || typeof LAF.afterImport !== 'function') return;
+    if (this._autoFillRunning) return;              // 上一轮还在跑：它结束后会自己再调度
+    const queue = this._autoFillQueue || [];
+    const persist = this._autoFillPersist || [];
+    this._autoFillQueue = [];
+    this._autoFillPersist = [];
+    if (!queue.length) return;
+    const seen = new Set();
+    const papers = queue.filter(p => {
+      const id = String(p && p.id || '');
+      if (!id || seen.has(id)) return false;
+      seen.add(id);
+      return true;
+    });
+    if (!papers.length) return;
+    const self = this;
+    const store = typeof Store !== 'undefined' ? Store : undefined;
+    this._autoFillRunning = true;
+    Promise.all(persist.map(p => Promise.resolve(p).catch(() => null)))
+      /* papers 是本次导入新增（added）里排队、去重后的听力篇目；这里用全局名调用，便于自检套件识别接线 */
+      .then(() => window.ListeningAutoFill.afterImport(papers, {
+        store,
+        pool: (typeof Dict !== 'undefined' && Dict.content && Dict.content.listening)
+          ? Dict.content.listening.passages : undefined,
+        onProgress(msg, paper) {
+          try {
+            console.info('[听力自动补全] ' + (msg || '')
+              + (paper && paper.title ? '（' + paper.title + '）' : ''));
+          } catch (e) { /* 忽略 */ }
+        },
+        onResult(report, paper) { self._onAutoFillResult(report, paper); },
+        onPatch(paper, patch) { self._onAutoFillPatch(paper, patch); },
+      }))
+      .then(sum => { self._autoFillRunning = false; self._onAutoFillSummary(sum, papers); })
+      .catch(e => {
+        self._autoFillRunning = false;
+        console.warn('[导入] 听力自动补全失败（不影响已导入内容）', e);
+      })
+      .then(() => { if ((self._autoFillQueue || []).length) self._scheduleListeningAutoFill(0); });
+  },
+
+  /** afterImport 每篇完成时回调：补丁已写进 Store.d.lsnPatch，这里只落盘（页面刷新最后统一做一次）。 */
+  _onAutoFillResult(report, paper) {
+    try {
+      if (typeof Store !== 'undefined' && Store && typeof Store.flush === 'function') Store.flush();
+      this.listeningAutoFillReports = (this.listeningAutoFillReports || []).concat([report || {}]);
+      if (paper) this.listeningAutoFillReports[this.listeningAutoFillReports.length - 1].paperId =
+        String(paper.id || '');
+    } catch (e) { console.warn('[导入] 听力自动补全结果处理失败（忽略）', e); }
+  },
+
+  /** 单篇补丁落库回调：flush 后立刻把补丁应用到内存篇目（不重渲染，避免打断正在作答的页面）。 */
+  _onAutoFillPatch(paper, patch) {
+    try {
+      if (typeof Store !== 'undefined' && Store && typeof Store.flush === 'function') Store.flush();
+      const LAF = typeof window !== 'undefined' && window.ListeningAutoFill;
+      if (!paper || !LAF || typeof LAF.applyPatches !== 'function' || typeof LAF.readPatches !== 'function') return;
+      LAF.applyPatches([paper], LAF.readPatches(Store));
+    } catch (e) { console.warn('[导入] 应用听力补丁失败（忽略）', e); }
+  },
+
+  /** 一轮 afterImport 结束：落盘、应用补丁、当前在听力页才刷新、有实际补入才提示一句。 */
+  _onAutoFillSummary(sum, papers) {
+    try {
+      const LAF = typeof window !== 'undefined' && window.ListeningAutoFill;
+      /* afterImport 模块级互斥：听力页自己的自动补全正在跑时返回 busy。
+       * 不重试的话，导入时排队的篇目会被静默丢掉，用户只能自己再点一次。*/
+      if (sum && sum.busy) {
+        const tries = (this._autoFillBusyRetries || 0) + 1;
+        this._autoFillBusyRetries = tries;
+        if (tries <= 6 && papers && papers.length) {
+          this._autoFillQueue = (this._autoFillQueue || []).concat(papers);
+          console.info('[听力自动补全] 另一个补全任务在跑，' + (tries * 5) + ' 秒后重试（第 ' + tries + ' 次）');
+          this._scheduleListeningAutoFill(tries * 5000);
+        } else {
+          console.warn('[导入] 听力自动补全持续被占用，本次跳过；可在听力页手动重试');
+        }
+        return;
+      }
+      this._autoFillBusyRetries = 0;
+      if (typeof Store !== 'undefined' && Store && typeof Store.flush === 'function') Store.flush();
+      /* 补丁已在 Store.d.lsnPatch：应用到内存篇目，不重渲染也能看到补全结果 */
+      if (LAF && typeof LAF.applyPatches === 'function' && typeof LAF.readPatches === 'function'
+        && typeof Dict !== 'undefined' && Dict.content && Dict.content.listening) {
+        try { LAF.applyPatches(Dict.content.listening.passages || [], LAF.readPatches(Store)); }
+        catch (e) { console.warn('[导入] 应用听力补丁失败（忽略）', e); }
+      }
+      this._refreshListeningViewIfActive();
+      const scriptAdded = Number(sum && sum.scriptAdded) || 0;
+      const stemsFilled = Number(sum && sum.stemsFilled) || 0;
+      const failed = Number(sum && sum.failed) || 0;
+      if ((scriptAdded || stemsFilled) && typeof App !== 'undefined' && App.toast) {
+        const parts = [];
+        if (scriptAdded) parts.push('原文 ' + scriptAdded + ' 篇');
+        if (stemsFilled) parts.push('题干 ' + stemsFilled + ' 题');
+        App.toast('听力自动补全：已补入' + parts.join('、'), 'ok');
+      } else if (failed) {
+        console.info('[听力自动补全] ' + failed + ' 篇未补全，原因见听力页自动补全状态');
+      }
+    } catch (e) { console.warn('[导入] 听力自动补全汇总处理失败（忽略）', e); }
+  },
+
+  /** 当前页恰好在听力页时才刷新；不在听力页、或正在播放时不打扰（不调 App.go，避免重置页面）。 */
+  _refreshListeningViewIfActive() {
+    try {
+      if (typeof document === 'undefined' || !document.getElementById) return;
+      const view = document.getElementById('view');
+      if (!view) return;
+      const viewName = (typeof App !== 'undefined' && App.cur)
+        || (view.dataset && view.dataset.view) || '';
+      if (viewName !== 'listening') return;
+      const VL = typeof window !== 'undefined' && window.ViewListen;
+      if (!VL || typeof VL._shell !== 'function') return;
+      if (VL.playing) return;            // 正在播放：不打断音频，下次进入页面自然看到补全结果
+      VL._shell(view);
+    } catch (e) { console.warn('[导入] 听力页自动刷新失败（已静默降级）', e); }
   },
 
   /** 该年份+场次+套别下已存在的导入篇数，用于续号（不能把其它套的篇数算进来） */

@@ -263,7 +263,7 @@ function makePages(text) {
   /* ---------- 5. importer 动态接线：用假 AI 跑通「切批 → 每批校验 → 合并 → 缓存/续跑」 ---------- */
   const importerSrc = fs.readFileSync(path.join(ROOT, 'js/importer.js'), 'utf8');
   const meta = { type: 'cet6', year: 2024, session: '06', typeVerification: 'unverified' };
-  function loadImporter(handler) {
+  function loadImporter(handler, extra = {}) {
     const calls = [];
     const mockAI = {
       ready: true,
@@ -280,7 +280,7 @@ function makePages(text) {
       setItem(k, v) { store[k] = String(v); },
       removeItem(k) { delete store[k]; },
     };
-    const ctx = vm.createContext({
+    const base = {
       window: {}, console, setTimeout, clearTimeout, Date, Math, JSON, Object, Array, String, Number, Promise, Set, Map,
       document: { querySelector: () => null, querySelectorAll: () => [], getElementById: () => null },
       localStorage: localStorageShim, location: { href: 'http://127.0.0.1:8777/' },
@@ -290,9 +290,12 @@ function makePages(text) {
       Dict: { content: { listening: { passages: [] }, reading: { passages: [] }, writing: { tasks: [] } } },
       ImportPipeline: IP,
       $: () => null, esc: v => String(v == null ? '' : v),
-    });
+    };
+    /* extra 用于个别用例替换 document/Store 等（自动补全接线要模拟“当前在听力页”），
+     * 合并顺序放在 base 之后，可覆盖同名全局。 */
+    const ctx = vm.createContext(Object.assign(base, extra));
     vm.runInContext(importerSrc, ctx);
-    return { Importer: ctx.window.Importer, calls };
+    return { Importer: ctx.window.Importer, calls, ctx };
   }
   const moduleOf = messages => {
     const m = String(messages[0].content).match(/模块 (listening|reading|writing)/);
@@ -630,6 +633,226 @@ function makePages(text) {
     assert.equal(rep.failures.length, 0, '二分后应通过：' + JSON.stringify(rep.failures));
     assert.ok((rep.splitBatches || 0) >= 1, '应记录批内二分次数：' + JSON.stringify(rep));
     assert.ok(out.modules.reading.length >= 1, '阅读内容应合并入库');
+  });
+
+  /* ---------- 8. 导入后自动识别套别 / 同套听力题干复用 / 后台自动补全接线 ---------- */
+  /** 用契约里的函数签名做一份假 ListeningAutoFill（纯本地桩，不联网、不调 AI） */
+  function makeAutoFillFake() {
+    const patches = {};
+    const fake = {
+      paperAudioKey(p) {
+        const qs = (p && p.qs) || [];
+        return String(p && p.type || '') + '|' + qs.length + '|'
+          + qs.map(q => ((q && q.opts) || []).map(o => String(o == null ? '' : o).trim().toLowerCase()).join('~')).join('||');
+      },
+      stemIsPlaceholder(q) { return !String(q && q.q == null ? '' : q.q).trim(); },
+      stemsComplete(p) {
+        const qs = (p && p.qs) || [];
+        return qs.length > 0 && qs.every(q => q && String(q.q == null ? '' : q.q).trim());
+      },
+      missingStemIndexes(p) {
+        return ((p && p.qs) || []).map((q, i) => (q && String(q.q == null ? '' : q.q).trim() ? -1 : i)).filter(i => i >= 0);
+      },
+      copyStemsFromDonor(paper, donor) {
+        let filled = 0;
+        ((paper && paper.qs) || []).forEach((q, i) => {
+          const src = ((donor && donor.qs) || [])[i];
+          const text = String(src && src.q == null ? '' : (src && src.q) || '').trim();
+          if (q && !String(q.q == null ? '' : q.q).trim() && text) { q.q = text; delete q.stemMissing; filled++; }
+        });
+        if (filled) { paper.stemSource = 'set'; paper.stemFromSet = Number(donor && donor.setNo) || null; }
+        return { filled: filled, fromSet: Number(donor && donor.setNo) || null };
+      },
+      writePatch(store, id, patch) {
+        if (!store || !id || !patch) return false;
+        store.d = store.d || {};
+        store.d.lsnPatch = store.d.lsnPatch || {};
+        store.d.lsnPatch[id] = Object.assign({}, store.d.lsnPatch[id] || {}, patch);
+        patches[id] = store.d.lsnPatch[id];
+        return true;
+      },
+      readPatches(store) { return (store && store.d && store.d.lsnPatch) || {}; },
+      applyPatches(papers, patchMap) {
+        let n = 0;
+        (papers || []).forEach(p => {
+          const patch = patchMap && p && patchMap[String(p.id || '')];
+          if (!patch) return;
+          Object.keys(patch.stems || {}).forEach(k => {
+            const q = ((p.qs) || [])[Number(k)];
+            if (q && !String(q.q == null ? '' : q.q).trim()) { q.q = patch.stems[k]; delete q.stemMissing; n++; }
+          });
+        });
+        return n;
+      },
+    };
+    return { fake: fake, patches: patches };
+  }
+
+  check('套别自动识别：正文唯一「第X套 / Set X」才采用，指别的套的说明与冲突都不猜', () => {
+    const { Importer } = loadImporter(() => ({}));
+    const unique = plain(Importer._detectSetEvidence('2023年12月大学英语六级考试（第 2 套）\nPart I Writing\nDirections: ...'));
+    assert.equal(unique.setNo, 2);
+    assert.ok(/第 2 套/.test(unique.evidence), '应记录识别依据：' + unique.evidence);
+    const english = plain(Importer._detectSetEvidence('CET-6 December 2023 Set 3\nPart II Listening Comprehension'));
+    assert.equal(english.setNo, 3);
+    const note = plain(Importer._detectSetEvidence('本套听力与第一套相同，未重复显示。'));
+    assert.equal(note.setNo, null, '“与第一套相同”是在指别的套，不能当本套套别');
+    const conflict = plain(Importer._detectSetEvidence('第1套 试卷\n...\n第3套 试卷'));
+    assert.equal(conflict.setNo, null, '证据冲突时应保持未标注');
+    assert.deepEqual(conflict.conflicts, [1, 3]);
+  });
+
+  check('套别自动识别：_detectPaperMeta 不把「与第一套相同」误当本卷套别', () => {
+    const { Importer } = loadImporter(() => ({}));
+    const meta = plain(Importer._detectPaperMeta('2023年12月六级真题（第2套）\n本套听力与第一套相同，未重复显示。', { year: null, session: null }));
+    assert.equal(meta.setNo, 2, '应取标题行的第2套，而不是说明句里的第一套：' + meta.setNo);
+    const noMarker = plain(Importer._detectPaperMeta('2023年12月六级真题\n本套听力与第一套相同，未重复显示。', { year: null, session: null }));
+    assert.equal(noMarker.setNo == null, true, '只有说明句时不能猜套别：' + noMarker.setNo);
+  });
+
+  check('套别自动识别：用户手选过就不覆盖，自动识别结果带 setEvidence 供 UI/报告', () => {
+    const { Importer } = loadImporter(() => ({}));
+    Importer.manualSetNo = null;
+    const auto = { year: 2023, session: '12' };
+    Importer._autoDetectSetNo(auto, '2023年12月六级真题\n第3套');
+    assert.equal(auto.setNo, 3);
+    assert.equal(auto.setNoSource, 'text');
+    assert.ok(auto.setEvidence && /第3套/.test(auto.setEvidence), '应记录套别依据');
+    Importer.manualSetNo = 1;
+    const manual = { year: 2023, session: '12', setNo: 1 };
+    Importer._autoDetectSetNo(manual, '2023年12月六级真题\n第3套');
+    assert.equal(manual.setNo, 1, '用户手选的套别不能被正文覆盖');
+    assert.equal(manual.setNoSource, 'manual');
+    Importer.manualSetNo = null;
+  });
+
+  await checkAsync('导入接线：同 key 听力（同月不同套）自动复用 donor 题干并标 sharedListening', async () => {
+    const { Importer, ctx } = loadImporter(() => ({}));
+    const { fake, patches } = makeAutoFillFake();   // 不含 afterImport：本用例只验本地复用，不启后台任务
+    ctx.window.ListeningAutoFill = fake;
+    const donor = {
+      id: 'builtin-listening-1', type: 'cet6', year: 2023, session: '12', setNo: 1,
+      title: '内置六级听力', script: [{ s: 0, en: 'W: Hello.' }],
+      qs: [
+        { q: 'What is the main idea of the passage?', opts: ['Alpha one.', 'Beta two.', 'Gamma three.', 'Delta four.'], a: 0 },
+        { q: 'Why does the man suggest that?', opts: ['First reason.', 'Second reason.', 'Third reason.', 'Fourth reason.'], a: 1 },
+      ],
+    };
+    const newPaper = {
+      title: '导入六级听力', words: [], script: [],
+      qs: [
+        { q: '', opts: donor.qs[0].opts.slice(), a: 0 },
+        { q: '', opts: donor.qs[1].opts.slice(), a: 1 },
+      ],
+    };
+    ctx.Dict.content.listening.passages = [donor];
+    Importer.raw = '';
+    Importer.manualSetNo = null;
+    const meta = { type: 'cet6', year: 2023, session: '12', typeVerification: 'ai-verified', typeEvidence: [], typeConfidence: 0.9 };
+    Importer._autoDetectSetNo(meta, '2023年12月大学英语六级考试（第2套）');
+    const r = Importer._commit({ passages: [newPaper] }, meta, 'listening');
+    assert.equal(r.n, 1, '应入库 1 篇');
+    const rec = ctx.Dict.content.listening.passages[1];
+    assert.equal(rec.setNo, 2);
+    assert.equal(rec.setNoSource, 'text', '套别来源应记为正文识别');
+    assert.ok(/第2套/.test(String(rec.setEvidence || '')), 'paper 上应记录套别依据：' + rec.setEvidence);
+    assert.equal(rec.sharedListening, true, '同月不同套且同指纹应标 sharedListening');
+    assert.equal(rec.sharedFromSet, 1);
+    assert.deepEqual(plain(rec.sameListeningAs), ['builtin-listening-1']);
+    assert.equal(rec.qs[0].q, 'What is the main idea of the passage?', '缺题干应从 donor 复用');
+    assert.equal(rec.qs[1].q, 'Why does the man suggest that?');
+    assert.ok(patches[rec.id], '应写入同套题干补丁');
+    assert.equal(patches[rec.id].stemSource, 'set');
+    assert.equal(patches[rec.id].stemFromSet, 1);
+    assert.equal(patches[rec.id].stems['0'], 'What is the main idea of the passage?');
+    assert.deepEqual(plain(rec.script), [], 'donor 原文不应被冒领（原文留待联网核验）');
+  });
+
+  await checkAsync('导入接线：缺原文/缺题干时异步调 afterImport（不阻塞导入），结果落盘并刷新当前听力页', async () => {
+    const viewEl = { id: 'view', dataset: { view: 'listening' } };
+    const { Importer, ctx } = loadImporter(() => ({}), {
+      document: { querySelector: () => null, querySelectorAll: () => [], getElementById: id => (id === 'view' ? viewEl : null) },
+    });
+    const calls = [];
+    const toasts = [];
+    let flushCount = 0, shellCount = 0;
+    const { fake } = makeAutoFillFake();
+    fake.afterImport = (papers, opts) => {
+      calls.push({ papers: papers.map(p => p.id), opts: opts });
+      const paper = papers[0];
+      const report = { paperId: String(paper && paper.id || ''), stemsFilled: 2, scriptAdded: true, failed: 0, status: 'partial', errors: [] };
+      if (opts.onProgress) opts.onProgress('正在联网检索听力原文…', paper);
+      if (opts.onPatch) {
+        fake.writePatch(ctx.Store, String(paper.id), {
+          stems: { 0: 'Picked stem one', 1: 'Picked stem two' },
+          script: [{ s: 0, en: 'W: hi.' }], scriptSource: 'web', scriptVerdict: 'ai-verified', stemSource: 'set',
+        });
+        opts.onPatch(paper, { stems: { 0: 'Picked stem one', 1: 'Picked stem two' } });
+      }
+      if (opts.onResult) opts.onResult(report, paper);
+      return Promise.resolve({ busy: false, papers: papers.length, scriptAdded: 1, stemsFilled: 2, failed: 0, reports: [report] });
+    };
+    ctx.window.ListeningAutoFill = fake;
+    ctx.App.cur = 'listening';
+    ctx.App.toast = (msg, kind) => toasts.push({ msg: msg, kind: kind });
+    ctx.window.ViewListen = { playing: false, _shell() { shellCount++; } };
+    const origFlush = ctx.Store.flush;
+    ctx.Store.flush = function () { flushCount++; return origFlush.apply(this, arguments); };
+    Importer.raw = '';
+    const meta = { type: 'cet6', year: 2023, session: '12', setNo: 2 };
+    const paper = {
+      title: '待补全听力', words: [], script: [],
+      qs: [
+        { q: '', opts: ['Alpha.', 'Beta.', 'Gamma.', 'Delta.'], a: 0 },
+        { q: '', opts: ['One.', 'Two.', 'Three.', 'Four.'], a: 1 },
+      ],
+    };
+    const r = Importer._commit({ passages: [paper] }, meta, 'listening');
+    assert.equal(r.n, 1);
+    assert.equal(calls.length, 0, 'afterImport 不能在导入返回前同步调用（不能 await 阻塞导入弹窗）');
+    const noScriptToast = toasts.find(t => /篇听力/.test(t.msg));
+    assert.ok(noScriptToast, '缺原文时必须当场提示');
+    assert.ok(/已自动[^。]{0,10}联网/.test(noScriptToast.msg), '提示应说明已自动在后台联网检索：' + noScriptToast.msg);
+    assert.notEqual(noScriptToast.kind, 'err', '有自动补全能力时不应只用错误色报缺失');
+    await new Promise(resolve => setTimeout(resolve, 700));
+    assert.equal(calls.length, 1, '后台应调用一次 afterImport（队列合并）');
+    assert.equal(calls[0].papers.length, 1);
+    assert.equal(typeof calls[0].opts.onResult, 'function');
+    assert.equal(typeof calls[0].opts.onProgress, 'function');
+    assert.equal(typeof calls[0].opts.onPatch, 'function');
+    assert.ok(calls[0].opts.store === ctx.Store, '应把 Store 传给 afterImport 用于写补丁');
+    assert.ok(Array.isArray(calls[0].opts.pool), '应把听力 pool 传给 afterImport 以便找同套 donor');
+    assert.ok(flushCount >= 1, '补全结果应落盘 Store.flush()');
+    assert.equal(Importer.listeningAutoFillReports.length, 1, 'onResult 应收到每篇报告');
+    assert.equal(shellCount, 1, '当前在听力页，补全完成后应刷新一次');
+    assert.ok(toasts.some(t => /听力自动补全：已补入/.test(t.msg) && t.kind === 'ok'),
+      '有实际补入时应给一句成功提示：' + JSON.stringify(toasts.map(t => t.msg)));
+  });
+
+  check('导入兼容：没有 window.ListeningAutoFill 时保留原提示、不影响入库', () => {
+    const { Importer, ctx } = loadImporter(() => ({}));   // window 上没有 ListeningAutoFill
+    const toasts = [];
+    ctx.App.toast = (msg, kind) => toasts.push({ msg: msg, kind: kind });
+    Importer.raw = '';
+    const r = Importer._commit({
+      passages: [{ title: '旧环境听力', words: [], script: [], qs: [{ q: 'Real stem', opts: ['a', 'b', 'c', 'd'], a: 0 }] }],
+    }, { type: 'cet6', year: 2023, session: '12', setNo: null }, 'listening');
+    assert.equal(r.n, 1);
+    const t = toasts.find(x => /篇听力/.test(x.msg));
+    assert.ok(t, '旧环境仍要提示缺原文');
+    assert.ok(/源文件里没有 Tapescripts/.test(t.msg), '旧环境应保留原文案：' + (t && t.msg));
+    assert.equal(t.kind, 'err');
+  });
+
+  check('导入接线：套别识别接在单份/批量导入核验之后，补全钩子与刷新已接线', () => {
+    const src = fs.readFileSync(path.join(ROOT, 'js/importer.js'), 'utf8');
+    assert.ok(/_autoDetectSetNo\(meta, this\.raw\)/.test(src), '单份导入未接线套别识别');
+    assert.ok(/_autoDetectSetNo\(meta, text\)/.test(src), '批量导入未接线套别识别');
+    assert.ok(/_linkSharedListening\(added, meta\)/.test(src), '未做同套听力题干复用');
+    assert.ok(/_queueListeningAutoFill\(needs, persistDone\)/.test(src), '未接入 afterImport 队列');
+    assert.ok(/\.afterImport\(papers/.test(src), '未调用 ListeningAutoFill.afterImport');
+    assert.ok(/_refreshListeningViewIfActive/.test(src) && /ViewListen/.test(src), '缺少听力页刷新');
+    assert.ok(/已自动[^。]{0,16}联网检索并核验原文/.test(src), '缺原文提示未改成“已自动联网检索”');
   });
 
   if (failed) process.exitCode = 1;

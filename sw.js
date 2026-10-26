@@ -10,7 +10,7 @@
 
 /* 2026-10-22：样式/脚本修复后必须换 cache 版本，否则 stale-while-revalidate 会先回旧 CSS，
  * 用户刷新一次看不到修复（要刷两次）。 */
-const CACHE = 'keeplrn-v18';
+const CACHE = 'keeplrn-v19';
 const CACHE_PREFIX = 'keeplrn-';
 
 // app 外壳。相对路径按 SW 作用域解析，便于整站部署到任意子路径。
@@ -28,9 +28,15 @@ const APP_SHELL = [
   'js/store.js',
   'js/text-repair.js',
   'js/translate-metric.js',
+  'js/native-http.js',
+  'js/native-tts.js',
+  'js/audio-pack.js',
+  'js/local-tts.js',
   'js/ai.js',
   'js/import-pipeline.js',
   'js/speech.js',
+  'js/web-search.js',          // 听力自动补全依赖：联网搜索 + 正文抽取
+  'js/listening-autofill.js',  // 听力自动补全：原文/题干补全编排（必须在 views/listening.js 前加载）
   'js/srs.js',
   'js/pdf.js',
   'js/ink.js',

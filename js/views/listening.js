@@ -211,6 +211,8 @@ const ViewListen = {
   },
   _shell(root) {
     root = App.freshView();
+    /* 整页重建后，上一页的「局部重渲染目标」已脱离文档，必须清掉 */
+    this._passBox = null;
     const L = Dict.content.listening;
     /* 长篇按年份/场次/篇章筛选。
      * cet4 与 cet6 走**完全相同**的结构与筛选路径，
@@ -219,7 +221,13 @@ const ViewListen = {
     let pool = L.passages;
     if (type) pool = pool.filter(p => p.type === type);
     else pool = pool.filter(p => p.type === 'dialogue');   // 对话/篇章听力用 dialogue 类
-    if (type) pool = this._withSharedListening(pool);
+    if (type) {
+      pool = this._withSharedListening(pool);
+      /* 【补丁必须在这里叠加】导入后自动补全（js/listening-autofill.js）把原文/题干存在
+       * Store.d.lsnPatch；补丁要赶在 Picker 计数与渲染之前生效，否则界面还按"原始导入数据"
+       * 显示成"明明补过还是缺"。共享副本 id 形如 xxx-shared-2，模块内部会回退到原篇目补丁。*/
+      this._applyPatches(pool);
+    }
     const filt = type ? Picker.filter(pool, this.sel || { year: 'all', session: 'all', no: 'all' }) : pool;
     const shared = filt.find(p => p && p.sharedListening);
     this._sharedNote = shared
@@ -603,6 +611,9 @@ const ViewListen = {
   _passage(box) {
     const p = this.shown && this.shown[this.piPass || 0];
     if (!p) { box.innerHTML = `<div class="empty"><p>请先选择一篇材料</p></div>`; return; }
+    /* 补丁兜底：_shell 已叠加过一次，这里再套一次（例如导入后回来、切篇回来）。
+     * 模块的 applyPatches 只补缺、幂等，重复调用无害。*/
+    this._applyPatches([p]);
     /* 导入文本里的“W:/M:”标签在这里拆成 sp 并去掉前缀（内置数据本来就是 sp 字段） */
     const lines = this._normalizeSpeakerLines(p.script || []);
     const isCet4 = p.type === 'cet4';
@@ -626,7 +637,7 @@ const ViewListen = {
               : p.setNo ? '<span class="tag">第 ' + p.setNo + ' 套</span>' : ''}
             <span class="tag ${isCet4 ? 'tag-ok' : 'tag-pri'}">${esc(p.level || '')}</span>
             ${paperKind ? `<span class="tag">${esc(paperKind)}</span>` : ''}
-            ${missingStemCount ? `<span class="tag tag-warn" title="四六级听力卷面只印选项，题干只在录音中播报">卷面未印题干 ${missingStemCount}</span>` : ''}
+            ${missingStemCount ? `<span class="tag tag-warn lsn-stem-tag" title="四六级听力卷面只印选项，题干只在录音中播报">卷面未印题干 ${missingStemCount}</span>` : ''}
             ${p.typeVerification === 'ai-verified'
               ? `<span class="tag tag-ok" title="${esc((p.typeEvidence || []).join('；'))}">AI 核验类型</span>`
               : p.typeVerification ? '<span class="tag tag-warn">类型待核验</span>' : ''}
@@ -709,18 +720,32 @@ const ViewListen = {
     this.genderInfo = '';
     this._paintGender();
     this.detectGenders(lines, p).then(() => this._paintGender());
+    /* 记下"这次按几行原文推过说话人"：补进原文后行数会变，_refreshPassage 据此再推一次 */
+    this._genderSig = this._passKey(p) + '|' + lines.length;
     this._bindCommon(box, lines.map(l => l.en).join(' '), p);
     if (p.qs && p.qs.length) this._renderQuiz(box, p.qs, p.id);
+    /* 记下这一篇的容器：自动补全/解析回来后只局部重渲染，不整页重建（否则会打断播放与作答）*/
+    this._passBox = box;
+    this._paintAfStatus(p);
+    /* 【不阻塞】缺原文或缺题干的篇目，进页面就自动补全一次；不 await，作答与播放立刻可用 */
+    this._autoFill(p);
   },
 
   /* ---------- 听力原文区 ---------- */
   _script(card, lines, title, opt = {}) {
     if (!card) return;
+    /* 自动补全状态行：只在长篇（opt.missing）出现，行内容由 _paintAfStatus 填；
+     * 单句/对话视图不插，免得每张卡都多一块空提示。*/
+    const afLine = opt.missing
+      ? '<div class="hint" id="afScriptStatus" style="margin:2px 0 8px;color:var(--tx3);line-height:1.7"></div>'
+      : '';
     /* 【缺原文的卷子必须写明原因，而不是留一片空白】
      * 真题 PDF 常常只有题干与选项，导入之后 script 是空的：
      * 原文区空白、点播放没有声音、答案也无从判断。空白会被当成"播放坏了"，
      * 所以这里直接说明缺什么、为什么、怎么补救。*/
     if (!lines.length && opt.missing) {
+      /* 【不再只报"没有原文"】进篇就会自动联网检索并核验；这里给出实时状态、失败原因
+       * 与重试入口，同时保留原来的手动粘贴/抓取通道。*/
       card.innerHTML = `
       <div class="sec-t">听力原文</div>
       <div class="card"><div class="card-b">
@@ -729,16 +754,21 @@ const ViewListen = {
           导入时源文件里只有题干与选项，没有「听力原文 / Tapescripts / 录音材料」，因此：<br>
           · <b>无法播放</b>：没有可朗读的文本（点播放只会按题号读题干）；<br>
           · <b>无法判分</b>：选项在题目区，答案需要自己核对。<br>
-          可以粘贴 Tapescript，由 AI 按题号切分/审核后补入本页，再用本地 TTS 朗读。
+          已自动联网检索并核验该套听力的 Tapescript，失败会给出原因；也可以粘贴 Tapescript，
+          由 AI 按题号切分/审核后补入本页，再用本地 TTS 朗读。
         </div>
-        <button class="btn btn-pri btn-s" data-act="fillTranscript" style="margin-top:12px">补原文（抓文本 + AI 审核 + 本地朗读）</button>
+        <div class="hint" id="afScriptStatus" style="margin-top:8px;line-height:1.8;color:var(--tx3)"></div>
+        <div class="row" style="margin-top:10px;gap:8px;flex-wrap:wrap">
+          <button class="btn btn-pri btn-s" data-act="autofillScript">🔄 自动联网补全原文</button>
+          <button class="btn btn-gh btn-s" data-act="fillTranscript">补原文（抓文本 + AI 审核 + 本地朗读）</button>
+        </div>
       </div></div>`;
       return;
     }
     const shown = this.mode === 'write' && !this.submitted;
     if (shown) {
       card.innerHTML = `
-      <div class="sec-t">听力原文（写模式已隐藏文字，仅可听）</div>
+      ${afLine}<div class="sec-t">听力原文（写模式已隐藏文字，仅可听）</div>
         <div class="hidden-locked">
           ${lines.map((l, i) => `<div class="script-line" data-say="${esc(l.en)}" style="padding-right:76px">
             <span class="n">${l.sp || (i + 1)}</span>
@@ -751,7 +781,7 @@ const ViewListen = {
       </div>`;
       return;
     }
-    card.innerHTML = `
+    card.innerHTML = afLine + `
     <div class="sec-t">原文与复现（点击任意句子可单独复现）</div>
       <div style="max-height:330px;overflow-y:auto" id="scriptLines">
       ${lines.map((l, i) => `<div class="script-line" data-say="${esc(l.en)}">
@@ -764,11 +794,354 @@ const ViewListen = {
       </div>`;
   },
 
+  /* ---------- 听力自动补全（原文/题干）：js/listening-autofill.js 接线 ----------
+   * 用户要求：导入 PDF 后自动识别试卷；没有 Tapescript 时自动上网搜索、核验并导入；
+   * 同一月份不同套若其实是同一套听力，自动为未印题干的套卷补全题干，
+   * 而不是只提示"导入 PDF 上没印"。
+   * 这里只做「接线 + 状态 UI」：纯函数与联网/AI 编排都在 js/listening-autofill.js。
+   * 三条硬约束：不阻塞作答与播放；同一篇不重复联网；失败只降级显示原因，绝不弹错误框。*/
+
+  /** 取自动补全服务。脚本缺失（旧缓存 / Node 自检的 vm 环境）时返回 null，页面照常可用。 */
+  _autofill() {
+    if (typeof ListeningAutoFill !== 'undefined' && ListeningAutoFill) return ListeningAutoFill;
+    if (typeof window !== 'undefined' && window && window.ListeningAutoFill) return window.ListeningAutoFill;
+    return null;
+  },
+
+  /** 把 Store.d.lsnPatch 里的补丁叠加到篇目。
+   *  模块负责"只补缺、幂等"，共享副本（id 带 -shared-N）会自动回退到原篇目的补丁。*/
+  _applyPatches(papers) {
+    const AF = this._autofill();
+    if (!AF || typeof AF.applyPatches !== 'function' || !Array.isArray(papers) || !papers.length) return 0;
+    let patches = {};
+    try {
+      patches = (typeof AF.readPatches === 'function')
+        ? AF.readPatches(typeof Store !== 'undefined' ? Store : null) : {};
+    } catch (e) { patches = {}; }
+    if (!patches || typeof patches !== 'object') return 0;
+    try { return Number(AF.applyPatches(papers, patches)) || 0; } catch (e) { return 0; }
+  },
+
+  /** 缺题干统计：{ total, missing }（与答题卡渲染同一个 _stemInfo 口径）。 */
+  _stemCounts(p, qs) {
+    const list = Array.isArray(qs) ? qs : ((p && Array.isArray(p.qs)) ? p.qs : []);
+    let missing = 0;
+    for (let i = 0; i < list.length; i++) {
+      if (this._stemInfo(list[i], i, p).missing) missing++;
+    }
+    return { total: list.length, missing: missing };
+  },
+
+  /** 这篇是否还缺东西：没有原文，或题干没印在卷面。补丁已完整时返回 false（不再联网）。 */
+  _needsAutoFill(p) {
+    if (!p) return false;
+    if (!((p.script && p.script.length) || 0)) return true;
+    return this._stemCounts(p).missing > 0;
+  },
+
+  /** run() 写补丁用的篇目：共享副本（id 形如 xxx-shared-2）借用原篇目的 id。
+   *  否则补丁落在每次渲染都会重建的副本 id 上，下次进页面就找不到补丁了。*/
+  _patchTarget(p) {
+    const id = String((p && p.id) || '');
+    const rootId = id.replace(/-shared-\d+$/, '');
+    if (!rootId || rootId === id) return p;
+    const base = (this.pool || []).find(x => x && !x.sharedListening && String(x.id) === rootId);
+    return base ? Object.assign({}, base) : Object.assign({}, p, { id: rootId });
+  },
+
+  _afStates() { this._afState = this._afState || {}; return this._afState; },
+
+  /** 本次运行内"自动补全跑过一次"的标记：跳过/失败也不重复联网、不重复花钱。 */
+  _afTried() { this._autoTried = this._autoTried || {}; return this._autoTried; },
+
+  /**
+   * 进篇后不阻塞地自动补全：同套题干复用 → 原文口播抽题干 → 联网检索原文/题干并核验。
+   * @param {object} p 当前篇目
+   * @param {{force?:boolean}} [opts] force=true 表示用户点按钮重试（绕过"本次只跑一次"）
+   */
+  _autoFill(p, opts) {
+    const o = opts || {};
+    if (!p) return null;
+    const key = this._passKey(p);
+    const states = this._afStates();
+    const tried = this._afTried();
+    const st = states[key];
+    if (st && st.status === 'running') return st.promise || null;
+    if (!o.force && tried[key]) return null;
+    if (!o.force && !this._needsAutoFill(p)) { tried[key] = true; return null; }
+    const AF = this._autofill();
+    if (!AF || typeof AF.run !== 'function') {
+      states[key] = { status: 'skipped', errors: ['自动补全模块未加载（脚本缺失或缓存是旧版）'] };
+      tried[key] = true;
+      this._paintAfStatus(p);
+      return null;
+    }
+    tried[key] = true;
+    const self = this;
+    const state = states[key] = { status: 'running', progress: '正在检查同套听力 / 检索原文…', errors: [], report: null };
+    let promise;
+    try {
+      /* 模块自己 writePatch 并调 onPatch；这里不重复构造 patch，只把结果落盘并局部重渲染 */
+      promise = Promise.resolve(AF.run(this._patchTarget(p), {
+        store: (typeof Store !== 'undefined' ? Store : undefined),
+        pool: this.pool,
+        onProgress: msg => self._afProgress(key, msg),
+        onPatch: (paper, patch) => self._onAutoPatch(p, patch),
+      }));
+    } catch (e) {
+      state.status = 'failed';
+      state.errors = [String((e && e.message) || e || '自动补全启动失败')];
+      this._paintAfStatus(p);
+      return null;
+    }
+    state.promise = promise;
+    promise.then(report => self._afDone(p, key, report), err => self._afFail(p, key, err));
+    this._paintAfStatus(p);
+    return promise;
+  },
+
+  /** 进度行：只在用户仍停在这一篇时刷新（切走后不打扰）。 */
+  _afProgress(key, msg) {
+    const st = this._afStates()[key];
+    if (!st) return;
+    st.progress = String(msg == null ? '' : msg);
+    const cur = this.shown && this.shown[this.piPass || 0];
+    if (cur && this._passKey(cur) === key) this._paintAfStatus(cur);
+  },
+
+  /** 编排结束：状态落到状态行；这次补到东西就按最新 Store 再叠加一次并局部重渲染。 */
+  _afDone(p, key, report) {
+    const st = this._afStates()[key] || (this._afStates()[key] = {});
+    const r = (report && typeof report === 'object') ? report : {};
+    st.report = r;
+    st.progress = '';
+    st.errors = Array.isArray(r.errors) ? r.errors.slice(0, 6) : [];
+    st.status = String(r.status || ((r.stemsFilled || r.scriptAdded) ? 'done' : 'skipped'));
+    const cur = this.shown && this.shown[this.piPass || 0];
+    if (!cur || this._passKey(cur) !== key) return;
+    const changed = !!(r.stemsFilled || r.scriptAdded);
+    if (changed && !st.patched) {
+      this._applyPatches([cur]);
+      this._refreshPassage();
+    } else {
+      this._paintAfStatus(cur);
+    }
+    if (changed && typeof App !== 'undefined' && App.toast) {
+      if (r.scriptAdded) App.toast('已自动联网补全本篇听力原文', 'ok');
+      else App.toast('已自动补全 ' + r.stemsFilled + ' 题题干（' + this._stemSourceLabel(cur, st) + '）', 'ok');
+    }
+  },
+
+  /** 模块承诺不抛异常；万一抛了也只降级显示，不影响作答与判分。 */
+  _afFail(p, key, err) {
+    const st = this._afStates()[key] || (this._afStates()[key] = {});
+    st.status = 'failed';
+    st.progress = '';
+    st.errors = [String((err && err.message) || err || '自动补全失败')];
+    const cur = this.shown && this.shown[this.piPass || 0];
+    if (cur && this._passKey(cur) === key) this._paintAfStatus(cur);
+  },
+
+  /**
+   * 补丁落地（模块已自己 writePatch，这里不重复写）：
+   * ① 同步 Store.d.contentBackup.listening 里同 id 的导入条目（只补缺）；
+   * ② Store.flush() 落盘；③ 局部重渲染原文卡 / 答题卡 / 头部标签 / 状态行。
+   */
+  _onAutoPatch(p, patch) {
+    if (!p || !patch || typeof patch !== 'object') return;
+    const key = this._passKey(p);
+    const st = this._afStates()[key];
+    if (st) { st.patched = true; st.progress = '已补入本篇，正在继续补其余项…'; }
+    this._syncContentBackup(p, patch);
+    try { if (typeof Store !== 'undefined' && Store.flush) Store.flush(); } catch (e) { /* 落盘失败只影响持久化 */ }
+    this._applyPatches([p]);
+    const cur = this.shown && this.shown[this.piPass || 0];
+    if (cur && this._passKey(cur) === key) this._refreshPassage();
+  },
+
+  /** 把补丁同步进 contentBackup 里的导入条目（只补缺，不覆盖已有原文/题干）。
+   *  【为什么】导入篇目重启后是从 contentBackup 合并回来的；不同步的话，
+   *  下次启动页面又变回"缺原文/缺题干"，导出的备份也带不走补全结果。*/
+  _syncContentBackup(p, patch) {
+    if (typeof Store === 'undefined' || !Store.d || !patch) return 0;
+    const b = Store.d.contentBackup && Store.d.contentBackup.listening;
+    const arr = Array.isArray(b) ? b : (b && Array.isArray(b.passages) ? b.passages : []);
+    if (!arr.length) return 0;
+    const ids = new Set();
+    const id = String((p && p.id) || '');
+    if (id) { ids.add(id); ids.add(id.replace(/-shared-\d+$/, '')); }
+    if (!ids.size) return 0;
+    const self = this;
+    const script = Array.isArray(patch.script) ? patch.script : null;
+    const stems = (patch.stems && typeof patch.stems === 'object') ? patch.stems : null;
+    let n = 0;
+    arr.forEach(item => {
+      if (!item || !ids.has(String(item.id))) return;
+      if (script && script.length && !(Array.isArray(item.script) && item.script.length)) {
+        item.script = script.map((l, i) => ({ s: i, en: String((l && (l.en != null ? l.en : l.text)) || '') }))
+          .filter(l => l.en);
+        if (item.script.length && patch.scriptSource) item.scriptSource = patch.scriptSource;
+      }
+      if (stems) {
+        Object.keys(stems).forEach(k => {
+          const i = Number(k);
+          const qs = Array.isArray(item.qs) ? item.qs : [];
+          if (!Number.isInteger(i) || i < 0 || i >= qs.length) return;
+          const text = String(stems[k] == null ? '' : stems[k]).trim();
+          if (!text) return;
+          if (!self._stemInfo(qs[i], i, item).missing) return;   // 只补缺，已有题干不动
+          qs[i].q = text;
+          delete qs[i].stemMissing;
+        });
+        if (patch.stemSource) item.stemSource = patch.stemSource;
+      }
+      n++;
+    });
+    return n;
+  },
+
+  /** 题干来源的中文标签：只说真实来源，不写没有根据的"已补全"。 */
+  _stemSourceLabel(p, st) {
+    const r = (st && st.report) || {};
+    const src = String(r.stemsFrom || (p && p.stemSource) || '');
+    if (src === 'set') {
+      const set = Number(r.donorSetNo || (p && p.stemFromSet) || 0);
+      return set ? '同套第 ' + set + ' 套' : '同套听力';
+    }
+    if (src === 'transcript') return '原文口播';
+    if (src === 'web') return '联网核验';
+    if (src === 'ai') return 'AI 从原文提取（逐字核验）';
+    return '';
+  },
+
+  /** 原文卡片状态行：检索/核验的实时状态、结果来源、或没补到的具体原因。 */
+  _afScriptStatusHTML(p, st) {
+    const hasScript = !!(p && Array.isArray(p.script) && p.script.length);
+    if (st && st.status === 'running') {
+      return '⏳ 正在自动联网检索并核验本篇听力原文……'
+        + (st.progress ? '<br>' + esc(st.progress) : '');
+    }
+    if (hasScript) {
+      const url = String((p && p.scriptUrl) || '');
+      if ((p && p.scriptSource) === 'web') {
+        return '✅ 原文已自动联网检索并核验'
+          + (url ? '（来源：' + esc(url) + '）' : '（来源：网页正文）')
+          + ((p && p.scriptVerdict) === 'ai-verified' ? '，AI 已逐字核验' : '')
+          + '；可用本地语音朗读。';
+      }
+      if ((p && p.scriptSource) === 'transcript') return '✅ 原文已补入（手动粘贴 / 网页抓取 + AI 审核）。';
+      return '';
+    }
+    const errs = (st && st.errors && st.errors.length) ? st.errors.slice(0, 3) : [];
+    if (errs.length) {
+      return (st.status === 'failed' ? '⚠ 自动补全失败：' : '⚠ 自动补全暂时没补到：')
+        + esc(errs.join('；'))
+        + '<br>可以点「🔄 自动联网补全原文」重试，或自己找到 Tapescript 后点「补原文」。';
+    }
+    if (st && st.status === 'skipped') {
+      return 'ℹ 自动补全已跳过：没有可补的内容（AI 未配置 / 没联网 / 没有检索结果）。';
+    }
+    return '';
+  },
+
+  /** 缺题干提示条：idle / 正在补 / 已补（来源）/ 没补到的原因，都只陈述事实。 */
+  _afStemHTML(p, st, qs) {
+    const cnt = this._stemCounts(p, qs);
+    if (!cnt.total) return '';
+    const src = this._stemSourceLabel(p, st);
+    const running = !!(st && st.status === 'running');
+    const errs = (st && st.errors && st.errors.length) ? st.errors.slice(0, 3) : [];
+    const got = Number((st && st.report && st.report.stemsFilled) || 0);
+    const tip = (body, ok, button) => '<div class="tipbox" style="margin-bottom:14px;border-left-color:'
+      + (ok ? 'var(--ok)' : 'var(--warn)') + ';background:' + (ok ? 'var(--ok-l)' : 'var(--warn-l)') + '">'
+      + '<b>' + (ok ? '✅ 题干' : 'ℹ 题干') + '</b>　' + body + (button || '') + '</div>';
+    const retry = running
+      ? '<button class="btn btn-xs btn-gh" data-act="autofillStem" style="margin-top:8px" disabled>⏳ 正在检索…</button>'
+      : '<button class="btn btn-xs btn-gh" data-act="autofillStem" style="margin-top:8px">🔎 联网补全题干</button>';
+    if (running) {
+      return tip('本篇 ' + cnt.total + ' 题里还有 ' + cnt.missing + ' 题的题干未印在卷面'
+        + '（四六级听力只在录音中播报题干）。<br>正在自动补全：'
+        + esc(st.progress || '同套卷题干复用 → 原文口播 → 联网核验…'), false, retry);
+    }
+    if (!cnt.missing) {
+      if (!src) return '';
+      return tip('题干已齐全' + (got ? '（本次补全 ' + got + ' 题）' : '') + '，来源：' + esc(src) + '。'
+        + '<br><span style="color:var(--tx3)">补入的题干经同套听力逐字核对，选项与答案没有改动。</span>', true);
+    }
+    let head;
+    if (got || src) {
+      head = (got ? '已补全 ' + got + ' 题' : '已补全部分题干') + (src ? '（来源：' + esc(src) + '）' : '')
+        + '，仍缺 ' + cnt.missing + ' 题';
+    } else {
+      head = '本篇 ' + cnt.total + ' 题里有 ' + cnt.missing + ' 题题干未印在卷面'
+        + '（四六级听力只在录音中播报题干，卷面只有选项）';
+    }
+    let tail;
+    if (errs.length) tail = '<br><span style="color:var(--err)">自动补全没补到：' + esc(errs.join('；')) + '</span>';
+    else if (!st) tail = '<br>进入本篇会自动补全：同套卷题干复用 → 原文口播 → 联网核验。';
+    else tail = '<br>原文里没有播报这些题的题干，联网也没有可靠结果，可稍后重试。';
+    return tip(head + tail, false, retry);
+  },
+
+  /** 刷新自动补全三处状态：原文卡状态行 / 缺题干提示条 / 头部「卷面未印题干 N」。 */
+  _paintAfStatus(p) {
+    const cur = this.shown && this.shown[this.piPass || 0];
+    if (!cur) return;
+    const target = p || cur;
+    if (this._passKey(target) !== this._passKey(cur)) return;
+    const st = this._afStates()[this._passKey(target)] || null;
+    const box = this._passBox;
+    if (box && box.querySelector) {
+      const sc = box.querySelector('#afScriptStatus');
+      if (sc) sc.innerHTML = this._afScriptStatusHTML(target, st);
+      const sb = box.querySelector('#afStemBox');
+      if (sb) sb.innerHTML = this._afStemHTML(target, st);
+    }
+    this._paintStemTag(target);
+  },
+
+  /** 头部「卷面未印题干 N」：全补上后标签自然消失（不保留旧数字，也不作假）。 */
+  _paintStemTag(p) {
+    const box = this._passBox;
+    if (!box || !box.querySelector) return;
+    const tag = box.querySelector('.lsn-stem-tag');
+    if (!tag) return;
+    const cnt = this._stemCounts(p);
+    if (cnt.missing) { tag.textContent = '卷面未印题干 ' + cnt.missing; return; }
+    if (typeof tag.remove === 'function') tag.remove();
+    else if (tag.parentNode && tag.parentNode.removeChild) tag.parentNode.removeChild(tag);
+  },
+
+  /** 局部重渲染：原文卡 + 答题卡 + 状态行/头部标签（不整页 _shell，避免打断播放与作答）。 */
+  _refreshPassage() {
+    const box = this._passBox;
+    const p = this.shown && this.shown[this.piPass || 0];
+    if (!box || !p) return;
+    const lines = this._normalizeSpeakerLines(p.script || []);
+    const card = $('#scriptCard', box);
+    if (card) this._script(card, lines, p.title, { missing: true, p: p });
+    if (p.qs && p.qs.length) this._renderQuiz(box, p.qs, p.id);
+    this._paintAfStatus(p);
+    /* 补进来的原文可能带 W:/M: 标注：行数变了才重推说话人，避免每次补丁都打一次 AI */
+    const sig = this._passKey(p) + '|' + lines.length;
+    if (lines.length && this._genderSig !== sig) {
+      this._genderSig = sig;
+      this.detectGenders(lines, p).then(() => this._paintGender());
+    }
+  },
+
   /* ---------- 题目 ---------- */
   /** 判断某题的"题干"是真正题干还是只有题号/空 */
   _stemInfo(q, i, p) {
     const raw = String((q && q.q) || '').trim();
-    const placeholder = !raw || /^(?:question\s*)?\d+\s*[.、]?$/i.test(raw);
+    /* 占位判断与 js/listening-autofill.js 的 stemIsPlaceholder 用同一口径：
+     * 空 / 纯题号 / "Question 5" / Directions / 中文占位 都算"题干没印在卷面"。
+     * 两边口径不同会让提示条说"缺 N 题"而页面又渲染出题干，互相打架。
+     * 模块没加载（旧缓存 / Node 自检的 vm）时退回原来的题号正则。*/
+    const AF = this._autofill();
+    const placeholder = (AF && typeof AF.stemIsPlaceholder === 'function')
+      ? AF.stemIsPlaceholder(q)
+      : (!raw || /^(?:question\s*)?\d+\s*[.、]?$/i.test(raw));
     let no = 0;
     const m = raw.match(/^(?:question\s*)?(\d+)\s*[.、]?$/i);
     if (m) no = Number(m[1]);
@@ -786,7 +1159,6 @@ const ViewListen = {
     const p = this.shown && this.shown[this.piPass || 0];
     const total = qs.length * 2.5;
     const stems = qs.map((q, i) => this._stemInfo(q, i, p));
-    const missingCount = stems.filter(x => x.missing).length;
     const LV = {
       cet4: 'CET-4 听力理解', cet6: 'CET-6 听力理解',
     }[(p && p.type) || this.kind] || '听力作答';
@@ -799,9 +1171,7 @@ const ViewListen = {
     <div class="card-h">${LV} <span class="tag tag-pri">满分 ${total}</span>
       <span class="r">${this.mode === 'write' && !this.submitted ? `<button class="btn btn-xs btn-gh" data-act="toggleAns">${hidden ? '👁 查看题干' : '🙈 隐藏题干'}</button>` : ''}</span></div>
     <div class="card-b">
-      ${missingCount ? `<div class="tipbox" style="margin-bottom:14px;border-left-color:var(--warn);background:var(--warn-l)">
-        ℹ 本篇 ${missingCount}/${qs.length} 题的题干未印在卷面上（四六级听力只在录音中播报题干，卷面只有选项）。若源文件印有题干，导入时会自动补全。
-      </div>` : ''}
+      <div id="afStemBox">${this._afStemHTML(p, this._afStates()[this._passKey(p)] || null, qs)}</div>
       ${this.mode === 'write' && !this.submitted ? `<div class="tipbox listen-quiz-tip" style="margin-bottom:14px" ${hidden ? '' : 'hidden'}>🔒 题干已模糊，选项保持可见，听完后可查看题干。</div>` : ''}
       <div class="listen-quiz-content ${hidden ? 'listen-quiz-question-hidden' : ''}">
       ${qs.map((q, i) => `
@@ -1389,6 +1759,11 @@ const ViewListen = {
         case 'nb': ViewNotebook.open(); break;
         case 'import': Importer.open('listening'); break;
         case 'fillTranscript': this._fillTranscript(item); break;
+        case 'autofillScript': case 'autofillStem':
+          /* 「自动联网补全原文 / 联网补全题干」：强制重试一次（绕过"本次只跑一次"），
+           * 不阻塞作答；AI 未配置/断网/超时只更新状态行，不弹错误框。*/
+          this._autoFill(item || (this.shown && this.shown[this.piPass || 0]), { force: true });
+          break;
       }
     });
 
