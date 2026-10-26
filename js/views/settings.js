@@ -285,6 +285,10 @@ const ViewSettings = {
             <div style="margin-top:14px;padding-top:12px;border-top:1px solid var(--line)">
               <div style="font-size:12.5px;font-weight:650;color:var(--tx2)">Keep Learning 开源项目</div>
               <div style="font-size:11px;color:var(--tx3);margin-top:3px">与 AI 协作完成</div>
+              <div style="font-size:10.5px;color:var(--tx3);margin-top:6px;line-height:1.7">
+                词库：zhenghaoyang24/english-vocabulary（CC BY 4.0）<br>
+                搭配：KyleBing/english-vocabulary（BSD-3-Clause）
+              </div>
             </div>
             <div style="margin-top:12px;padding-top:12px;border-top:1px solid var(--line)">
               <div style="font-size:12.5px;font-weight:650;color:var(--tx2)">反馈与建议</div>
