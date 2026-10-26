@@ -60,7 +60,13 @@ jobs:
           files: |
             keep-learning-lite-CI-debug.apk
             keep-learning-lite-CI-debug.apk.sha256
-          generate_release_notes: true
+          body: |
+            **平台支持：仅 Windows 10/11 与 Android 平板（arm64）。**
+
+            - ❌ 不支持：iPad / iPhone（iOS）、macOS、Android 手机
+            - 附件是 lite CI debug 签名 APK（不含音频），仅供测试
+            - 官方签名包由维护者用正式 keystore 本地构建
+            - Windows 用户请从源码运行；iOS/macOS 暂无构建
 
       - name: Upload CI artifact
         uses: actions/upload-artifact@v4

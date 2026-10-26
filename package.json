@@ -2,7 +2,7 @@
   "name": "keep-learning-tablet",
   "version": "1.0.0",
   "private": true,
-  "description": "Keep Learning — offline English study workspace (Capacitor)",
+  "description": "Keep Learning — offline English study workspace (Windows + Android tablet)",
   "license": "MIT",
   "repository": {
     "type": "git",

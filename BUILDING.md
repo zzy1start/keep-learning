@@ -5,6 +5,19 @@
 仓库默认是 **lite 源码**：不包含 `assets/audio/`（约 48MB MP3）和 `assets/models/`（约 258MB Piper 模型），
 因此 clone 体积可控；缺少它们时应用会回退到系统语音，不会崩溃。
 
+## 平台支持
+
+| 平台 | 状态 | 说明 |
+|---|---|---|
+| Windows 10/11 | ✅ 支持 | Chrome/Edge + `serve.js`；桌面快捷方式 |
+| Android 平板（arm64） | ✅ 支持 | lite APK，Android 6.0+（minSdk 23），平板 UI |
+| iPad / iPhone | ❌ 不支持 | 没有 iOS 工程/签名 |
+| macOS | ❌ 不支持 | 未打包、未测试 |
+| Android 手机 | ❌ 未适配 | 手机布局/交互未完成 |
+| Linux / 其他 | ❌ 不支持 | 未测试 |
+
+> 当前只发布 GitHub，不发布 Gitee。
+
 ## 环境要求
 
 | 依赖 | 版本/说明 |
@@ -14,7 +27,7 @@
 | JDK | 21（Capacitor 7 / Android Gradle 要求） |
 | Android SDK | compileSdk 35；设置 `ANDROID_HOME`，或让 `tools/init-android.cjs` 写入 `android/local.properties` |
 | Python 3 + edge-tts + ffmpeg | 仅生成离线音频包时需要，见 [docs/36-离线音频包生成.md](docs/36-离线音频包生成.md) |
-| macOS + Xcode | 仅 iOS 原生构建需要（目前仓库未包含 iOS 工程） |
+| macOS + Xcode | ❌ 不支持；仓库不包含 iOS 工程，也不提供 iOS 构建 |
 
 ## 1. 安装依赖
 
@@ -78,24 +91,18 @@ node serve.js                    # 默认 http://127.0.0.1:8777
 见 [docs/36-离线音频包生成.md](docs/36-离线音频包生成.md)。Windows 可直接双击 `生成音频包.bat`。
 生成的 MP3 **不要提交 git、不要上传公开 Release**。
 
-## 7. iOS（未来）
+## 7. 未支持平台
 
-代码是 Capacitor 7，理论上可 `npx cap add ios`，但需要 macOS/Xcode 和 iOS 原生插件移植
-（TTS/AudioPack/LocalTts/PDF/Print）。目前在路线图中，尚未提供 iOS 工程。
+- **iOS / iPad**：没有 iOS 工程、没有签名流程，也没有移植 TTS/AudioPack/LocalTts/PDF/Print 插件。
+- **macOS**：未打包、未测试。
+- **Android 手机**：APK 可能能装，但手机布局/交互未完成，不提供支持。
+- **Linux / 其他**：未测试。
+
+如果以后要做 iOS，需要 macOS + Xcode + Apple 开发者账号，并重写 5 个原生插件；见 README 讨论记录。
 
 ## 发布
 
 - 官方 Release 使用 **lite APK**（不含音频）；签名证书指纹见 README「官方渠道与 APK 签名校验」。
-- GitHub Actions：`ci.yml` 跑自检 + lite Web 构建；`release-lite-apk.yml` 在打 tag 时构建 **CI debug 签名** APK（文件名含 `CI-debug`，仅供测试）；官方包由维护者用正式 keystore 本地构建；`mirror-gitee.yml` 把仓库镜像到 Gitee。
-
-### Gitee 只读镜像配置
-
-1. 在 Gitee 创建同名仓库（默认 `ZZY1START/keep-learning`）。
-2. 生成一对**部署公钥/私钥**，把公钥加到 Gitee 仓库的「部署公钥」（只读权限即可，镜像推送需要写权限则给可写）。
-3. 在 GitHub 仓库 Settings → Secrets and variables → Actions 添加：
-   - `GITEE_SSH_PRIVATE_KEY`：私钥全文；
-   - `GITEE_REPO`（可选）：`git@gitee.com:你的用户名/keep-learning.git`，不填则用默认值。
-4. 配好 secret 后，在 GitHub Actions 里手动运行一次 `Mirror to Gitee`；
-   确认成功后再取消 workflow 里 `push` 触发器的注释，实现 push/tag 自动镜像。
-
-> 镜像仓库请设为只读说明：Issue/PR 以 GitHub 为准，避免两边分叉。
+- **只发布 GitHub**（不发布 Gitee）。
+- GitHub Actions：`ci.yml` 跑自检 + lite Web 构建；`release-lite-apk.yml` 在打 tag 时构建 **CI debug 签名** APK（文件名含 `CI-debug`，仅供测试）；官方包由维护者用正式 keystore 本地构建。
+- 平台限制：只构建 **Android 平板 arm64** APK；Windows 走浏览器/源码；iOS/iPad、macOS、Android 手机不在构建范围内。
