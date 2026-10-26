@@ -31,10 +31,28 @@ jobs:
           distribution: temurin
           java-version: "21"
 
-      - uses: android-actions/setup-android@v3
-
-      - name: Install Android SDK packages
-        run: sdkmanager "platforms;android-35" "build-tools;35.0.0" "platform-tools"
+      # 不用 android-actions/setup-android：新 runner 上它会检测到预装 cmdline-tools
+      # 版本不符，然后尝试安装早已下线的 "tools" 包而失败（exit 1）。
+      # 直接用 runner 预装的 SDK + sdkmanager。
+      - name: Setup Android SDK (preinstalled)
+        run: |
+          SDK_ROOT="${ANDROID_HOME:-$ANDROID_SDK_ROOT}"
+          if [ -z "$SDK_ROOT" ] || [ ! -d "$SDK_ROOT" ]; then
+            SDK_ROOT="/usr/local/lib/android/sdk"
+          fi
+          echo "ANDROID_HOME=$SDK_ROOT" >> "$GITHUB_ENV"
+          echo "ANDROID_SDK_ROOT=$SDK_ROOT" >> "$GITHUB_ENV"
+          if [ -x "$SDK_ROOT/cmdline-tools/latest/bin/sdkmanager" ]; then
+            SDKMANAGER="$SDK_ROOT/cmdline-tools/latest/bin/sdkmanager"
+          else
+            SDKMANAGER="$(find "$SDK_ROOT/cmdline-tools" -maxdepth 3 -name sdkmanager -type f | sort -V | tail -1)"
+          fi
+          if [ -z "$SDKMANAGER" ]; then echo "sdkmanager not found"; exit 1; fi
+          echo "using $SDKMANAGER"
+          yes | "$SDKMANAGER" --licenses > /dev/null || true
+          "$SDKMANAGER" "platforms;android-35" "build-tools;35.0.0" "platform-tools"
+          echo "ANDROID_HOME=$SDK_ROOT"
+          ls "$SDK_ROOT/platforms"
 
       - name: Build lite web assets
         run: node tools/build-android.cjs --no-audio
@@ -61,10 +79,10 @@ jobs:
             keep-learning-lite-CI-debug.apk
             keep-learning-lite-CI-debug.apk.sha256
           body: |
-            **平台支持：仅 Windows 10/11 与 Android 平板（arm64）。**
+            **平台支持：仅 Windows 10/11 与 Android 平板（arm64）**
 
-            - 🚧 制作中：iPad / iPhone（iOS）、macOS、Android 手机（暂无构建）
-            - ❌ 未支持：Linux / 其他
+            - 制作中：iPad / iPhone（iOS）、macOS、Android 手机（暂无构建）
+            - 未支持：Linux / 其他
             - 附件是 lite CI debug 签名 APK（不含音频），仅供测试
             - 官方签名包由维护者用正式 keystore 本地构建
             - Windows 用户请从源码运行；iOS/macOS 暂无构建
