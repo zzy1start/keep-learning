@@ -38,6 +38,15 @@ jobs:
       - name: Check feedback entry
         run: node tools/check-feedback-mail.cjs
 
+      - name: Check listening fixes
+        run: node tools/check-listening-fixes.cjs
+
+      - name: Check vocab view
+        run: node tools/check-vocab-view.cjs
+
+      - name: Check listening paper (skips real fixtures when absent)
+        run: node tools/check-listening-paper.cjs
+
       - name: Build lite web assets
         run: node tools/build-android.cjs --no-audio
 
