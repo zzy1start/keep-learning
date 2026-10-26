@@ -1,0 +1,539 @@
+{
+  "meta": {
+    "note": "四级听力仿真题，非真题原文。男声（M）为主，结构与六级听力完全一致。"
+  },
+  "passages": [
+    {
+      "id": "cet4-dlg-volunteer",
+      "type": "cet4",
+      "level": "CET-4",
+      "genre": "短对话",
+      "year": 0,
+      "session": "1",
+      "no": 1,
+      "title": "Volunteer Sign-up",
+      "keywords": [],
+      "timeLimit": 3,
+      "totalScore": 7.5,
+      "script": [
+        {
+          "sp": "W",
+          "en": "Hi, are you volunteering for the campus clean-up this Saturday?",
+          "cn": "嗨，你这周六报名参加校园清洁志愿活动了吗？"
+        },
+        {
+          "sp": "M",
+          "en": "I signed up yesterday, but the coordinator said we still need someone to drive the truck.",
+          "cn": "我昨天报名了，不过协调员说我们还需要有人开车。"
+        },
+        {
+          "sp": "W",
+          "en": "Do you have a driver's license then?",
+          "cn": "那你有驾照吗？"
+        },
+        {
+          "sp": "M",
+          "en": "I've had one for three years. I can drive both the truck and the van.",
+          "cn": "我有三年了。卡车和面包车我都能开。"
+        },
+        {
+          "sp": "W",
+          "en": "Great. I'll put you down for the truck. We meet at the main gate at eight.",
+          "cn": "太好了。我把你安排去开卡车。我们八点在校门口集合。"
+        },
+        {
+          "sp": "M",
+          "en": "Noted. Should I bring my own gloves, or do they provide them?",
+          "cn": "记下了。我要自带手套吗，还是他们提供？"
+        },
+        {
+          "sp": "W",
+          "en": "They provide everything. Just bring a water bottle and wear something you don't mind getting dirty.",
+          "cn": "他们提供所有东西。带个水瓶就行，穿件不怕脏的衣服。"
+        }
+      ],
+      "qs": [
+        {
+          "q": "What does the man need to do for the clean-up?",
+          "opts": [
+            "Collect the supplies",
+            "Drive the truck",
+            "Train new volunteers",
+            "Supervise the students"
+          ],
+          "a": 1,
+          "explain": "协调员说还需要有人开车，男子随后说自己有三年驾照，能开卡车和面包车。",
+          "evidence": "I signed up yesterday, but the coordinator said we still need someone to drive the truck."
+        },
+        {
+          "q": "Where will the volunteers meet?",
+          "opts": [
+            "At the main gate",
+            "In front of the library",
+            "At the student centre",
+            "Behind the dormitory"
+          ],
+          "a": 0,
+          "explain": "女子说八点在校门口（main gate）集合。",
+          "evidence": "We meet at the main gate at eight."
+        },
+        {
+          "q": "What should the man bring himself?",
+          "opts": [
+            "Driving gloves",
+            "A water bottle",
+            "A pair of boots",
+            "His own truck"
+          ],
+          "a": 1,
+          "explain": "女子说他们提供一切，只需自带水瓶。",
+          "evidence": "They provide everything. Just bring a water bottle."
+        }
+      ]
+    },
+    {
+      "id": "cet4-dlg-dorm",
+      "type": "cet4",
+      "level": "CET-4",
+      "genre": "短对话",
+      "year": 0,
+      "session": "1",
+      "no": 2,
+      "title": "Dorm Room Change",
+      "keywords": [],
+      "timeLimit": 3,
+      "totalScore": 7.5,
+      "script": [
+        {
+          "sp": "W",
+          "en": "Excuse me, is this seat taken? I've been looking for an empty one near the window.",
+          "cn": "打扰一下，这个座位有人吗？我一直在找靠窗的空位。"
+        },
+        {
+          "sp": "M",
+          "en": "It's free now. My friend just left for lunch. But it gets direct sunlight in the afternoon.",
+          "cn": "现在没人。我朋友刚去吃午饭了。不过下午会有直射的阳光。"
+        },
+        {
+          "sp": "W",
+          "en": "That's fine. I prefer a bit of sun while I read anyway.",
+          "cn": "没关系，我读书时反而喜欢有点阳光。"
+        },
+        {
+          "sp": "M",
+          "en": "By the way, do you know when the library closes on weekends? I need to return a book.",
+          "cn": "顺便问一下，你知道图书馆周末几点关门吗？我要还一本书。"
+        },
+        {
+          "sp": "W",
+          "en": "I think it opens at nine and closes at six on Saturdays. Sundays it stays closed.",
+          "cn": "我记得周六九点开、下午六点关。周日不开。"
+        },
+        {
+          "sp": "M",
+          "en": "Good to know. I'll go there on Saturday then.",
+          "cn": "知道了。那我周六去。"
+        }
+      ],
+      "qs": [
+        {
+          "q": "Why was the seat available?",
+          "opts": [
+            "The man was going to lunch",
+            "It was reserved for the woman",
+            "Another student just left",
+            "The woman had booked it earlier"
+          ],
+          "a": 2,
+          "explain": "男子说朋友刚去吃午饭了，所以座位空出来。",
+          "evidence": "My friend just left for lunch."
+        },
+        {
+          "q": "What does the woman say about the sunlight?",
+          "opts": [
+            "It disturbs her while reading",
+            "She enjoys it",
+            "She plans to move seats",
+            "She finds it too hot"
+          ],
+          "a": 1,
+          "explain": "女子说自己读书时反而喜欢有点阳光。",
+          "evidence": "I prefer a bit of sun while I read anyway."
+        },
+        {
+          "q": "When is the library open on Sundays?",
+          "opts": [
+            "It opens at nine",
+            "It closes at six",
+            "It stays closed",
+            "It opens at noon"
+          ],
+          "a": 2,
+          "explain": "女子说周日图书馆不开门。",
+          "evidence": "Sundays it stays closed."
+        }
+      ]
+    },
+    {
+      "id": "cet4-dlg-library2",
+      "type": "cet4",
+      "level": "CET-4",
+      "genre": "短对话",
+      "year": 0,
+      "session": "1",
+      "no": 3,
+      "title": "Borrowing Rules",
+      "keywords": [],
+      "timeLimit": 3,
+      "totalScore": 7.5,
+      "script": [
+        {
+          "sp": "W",
+          "en": "I'd like to borrow these three books, but I heard there's a limit.",
+          "cn": "我想借这三本书，但我听说有数量限制。"
+        },
+        {
+          "sp": "M",
+          "en": "Students can take up to four at a time. Since you have three, you're fine.",
+          "cn": "学生一次最多可以借四本。你有三本，没问题。"
+        },
+        {
+          "sp": "W",
+          "en": "And how long can I keep them?",
+          "cn": "我可以借多久？"
+        },
+        {
+          "sp": "M",
+          "en": "Two weeks for standard books. Reference books can only be used inside the library.",
+          "cn": "普通书两周。参考书只能在馆内使用。"
+        },
+        {
+          "sp": "W",
+          "en": "What if I need to renew them? One of them is really important for my thesis.",
+          "cn": "如果我想续借呢？其中一本对我的论文很重要。"
+        },
+        {
+          "sp": "M",
+          "en": "You can renew once online, as long as nobody else has reserved the title. But the reference one cannot be renewed at all.",
+          "cn": "只要没有别人预约，你可以在线续借一次。但参考书完全不能续借。"
+        }
+      ],
+      "qs": [
+        {
+          "q": "How many books can a student borrow at once?",
+          "opts": [
+            "Two",
+            "Three",
+            "Four",
+            "Five"
+          ],
+          "a": 2,
+          "explain": "管理员说学生一次最多借四本。",
+          "evidence": "Students can take up to four at a time."
+        },
+        {
+          "q": "What is the rule for reference books?",
+          "opts": [
+            "They can be kept for a week",
+            "They can be renewed once",
+            "They can only be used on site",
+            "They need a special card"
+          ],
+          "a": 2,
+          "explain": "参考书只能在图书馆内使用，不能外借也不能续借。",
+          "evidence": "Reference books can only be used inside the library."
+        },
+        {
+          "q": "What is the condition for renewing online?",
+          "opts": [
+            "The book must not be reserved by others",
+            "The student must pay a fee",
+            "The book must be a novel",
+            "The librarian must approve it"
+          ],
+          "a": 0,
+          "explain": "只要没有其他人预约该书种，就可以在线续借一次。",
+          "evidence": "You can renew once online, as long as nobody else has reserved the title."
+        }
+      ]
+    },
+    {
+      "id": "cet4-dlg-schedule",
+      "type": "cet4",
+      "level": "CET-4",
+      "genre": "短对话",
+      "year": 0,
+      "session": "1",
+      "no": 4,
+      "title": "Training Schedule",
+      "keywords": [],
+      "timeLimit": 3,
+      "totalScore": 7.5,
+      "script": [
+        {
+          "sp": "W",
+          "en": "The gym says the swimming course is full. Do you know when a new session starts?",
+          "cn": "体育馆说游泳课满了。你知道下一期什么时候开始吗？"
+        },
+        {
+          "sp": "M",
+          "en": "I checked this morning. The next session opens on Monday and lasts eight weeks.",
+          "cn": "我今早查了。下一期周一开课，一共八周。"
+        },
+        {
+          "sp": "W",
+          "en": "Eight weeks is quite long. Is there a shorter option?",
+          "cn": "八周挺长的。有短一点的选择吗？"
+        },
+        {
+          "sp": "M",
+          "en": "There's an intensive four-week course, but it meets three times a week instead of once.",
+          "cn": "有个四周的 intensive 课程，但每周要上三次而不是一次。"
+        },
+        {
+          "sp": "W",
+          "en": "Three times a week is fine with me. What time does it run?",
+          "cn": "一周三次我可以。它什么时候上课？"
+        },
+        {
+          "sp": "M",
+          "en": "Tuesdays and Thursdays, plus Saturday morning. The fee is the same either way.",
+          "cn": "周二和周四，加上周六上午。两种课程费用一样。"
+        }
+      ],
+      "qs": [
+        {
+          "q": "When does the next session of the regular course start?",
+          "opts": [
+            "This weekend",
+            "On Monday",
+            "In two weeks",
+            "Next month"
+          ],
+          "a": 1,
+          "explain": "男子说下一期周一开课。",
+          "evidence": "The next session opens on Monday and lasts eight weeks."
+        },
+        {
+          "q": "What is the difference between the two courses?",
+          "opts": [
+            "The price",
+            "The number of meetings per week",
+            "The teacher",
+            "The swimming pool"
+          ],
+          "a": 1,
+          "explain": "intensive 课程每周上三次，而常规课每周一次；费用相同。",
+          "evidence": "it meets three times a week instead of once"
+        },
+        {
+          "q": "Which days does the intensive course meet?",
+          "opts": [
+            "Monday and Wednesday",
+            "Tuesdays, Thursdays and Saturday",
+            "Only Saturday",
+            "Daily"
+          ],
+          "a": 1,
+          "explain": "周二、周四，加上周六上午。",
+          "evidence": "Tuesdays and Thursdays, plus Saturday morning."
+        }
+      ]
+    },
+    {
+      "id": "cet4-pg-campus-bike",
+      "type": "cet4",
+      "level": "CET-4",
+      "genre": "短篇听力",
+      "year": 0,
+      "session": "1",
+      "no": 5,
+      "title": "The Campus Bike-Sharing Scheme",
+      "keywords": [],
+      "timeLimit": 5,
+      "totalScore": 10,
+      "script": [
+        {
+          "sp": "M",
+          "en": "Attention please, all students living on the east side of campus.",
+          "cn": "请注意，住在校园东侧的所有同学。"
+        },
+        {
+          "sp": "W",
+          "en": "Starting next Monday, a bike-sharing scheme will begin operating on a trial basis.",
+          "cn": "从下周一开始，一个共享单车项目将开始试运营。"
+        },
+        {
+          "sp": "M",
+          "en": "There are thirty docking stations, and you can borrow a bike with your student card at any of them.",
+          "cn": "共有三十个停车桩，你可以在任意一个用学生卡借车。"
+        },
+        {
+          "sp": "W",
+          "en": "The first thirty minutes of each ride are free. After that, you will be charged at a low hourly rate.",
+          "cn": "每次骑行前三十分钟免费。超过之后按较低的时薪收费。"
+        },
+        {
+          "sp": "M",
+          "en": "The scheme is intended to reduce car traffic and improve air quality around the teaching buildings.",
+          "cn": "该项目旨在减少车流量、改善教学区周边的空气质量。"
+        },
+        {
+          "sp": "W",
+          "en": "If the trial proves successful, the university plans to expand the number of stations next term.",
+          "cn": "如果试点成功，学校计划下学期扩大停车桩数量。"
+        }
+      ],
+      "qs": [
+        {
+          "q": "Who is the scheme mainly intended for?",
+          "opts": [
+            "All students and staff",
+            "Students on the east side",
+            "Only postgraduate students",
+            "Visitors to the campus"
+          ],
+          "a": 1,
+          "explain": "广播开头说「请注意，住在校园东侧的所有同学」，说明面向东侧学生。",
+          "evidence": "Attention please, all students living on the east side of campus."
+        },
+        {
+          "q": "How can students borrow a bike?",
+          "opts": [
+            "By paying a deposit",
+            "With their student card",
+            "By downloading an app",
+            "At the security gate"
+          ],
+          "a": 1,
+          "explain": "用学生卡在任意停车桩借车。",
+          "evidence": "you can borrow a bike with your student card at any of them"
+        },
+        {
+          "q": "What is free of charge?",
+          "opts": [
+            "The whole first day",
+            "The first thirty minutes of each ride",
+            "The second hour",
+            "Weekend rides"
+          ],
+          "a": 1,
+          "explain": "每次骑行前 30 分钟免费。",
+          "evidence": "The first thirty minutes of each ride are free."
+        },
+        {
+          "q": "What will happen if the trial succeeds?",
+          "opts": [
+            "The fee will be removed",
+            "More stations will be added",
+            "The scheme stops",
+            "Bikes become free for staff"
+          ],
+          "a": 1,
+          "explain": "如果试点成功，下学期会扩大停车桩数量。",
+          "evidence": "the university plans to expand the number of stations next term"
+        }
+      ]
+    },
+    {
+      "id": "cet4-pg-lost-found",
+      "type": "cet4",
+      "level": "CET-4",
+      "genre": "短篇听力",
+      "year": 0,
+      "session": "1",
+      "no": 6,
+      "title": "The Lost and Found Office",
+      "keywords": [],
+      "timeLimit": 5,
+      "totalScore": 10,
+      "script": [
+        {
+          "sp": "W",
+          "en": "Good morning. This is the lost and found office in the student centre.",
+          "cn": "早上好，这里是学生中心的失物招领处。"
+        },
+        {
+          "sp": "M",
+          "en": "I lost a black umbrella last Tuesday. Has anyone turned it in?",
+          "cn": "我上周二丢了一把黑伞。有人交过来吗？"
+        },
+        {
+          "sp": "W",
+          "en": "Actually yes. We have a black umbrella, though we cannot tell whose it is yet.",
+          "cn": "实际上有。我们有一把黑伞，不过还无法确认是谁的。"
+        },
+        {
+          "sp": "M",
+          "en": "Could I describe it so you can check? It has a wooden handle and a small scratch.",
+          "cn": "我能描述一下让你核对吗？木把手，上面有一道小划痕。"
+        },
+        {
+          "sp": "W",
+          "en": "That sounds right. Could you also tell me what is inside the pocket?",
+          "cn": "听起来没错。你能告诉我口袋里有什么吗？"
+        },
+        {
+          "sp": "M",
+          "en": "A student card and a receipt from the campus bookstore.",
+          "cn": "一张学生卡和一张校园书店的收据。"
+        },
+        {
+          "sp": "W",
+          "en": "Perfect. The umbrella will be returned to you after you fill in this form.",
+          "cn": "很好。填完这张表之后我们就把伞还给你。"
+        }
+      ],
+      "qs": [
+        {
+          "q": "What did the man lose?",
+          "opts": [
+            "A black umbrella",
+            "A student card",
+            "A bookstore receipt",
+            "A wooden handle"
+          ],
+          "a": 0,
+          "explain": "男子说上周二丢了一把黑伞。",
+          "evidence": "I lost a black umbrella last Tuesday."
+        },
+        {
+          "q": "How can the man prove the umbrella is his?",
+          "opts": [
+            "By showing a receipt",
+            "By describing its features and contents",
+            "By calling a friend",
+            "By knowing the exact time"
+          ],
+          "a": 1,
+          "explain": "通过描述特征（木把手、划痕）和口袋里的物品来确认。",
+          "evidence": "Could I describe it so you can check? It has a wooden handle and a small scratch."
+        },
+        {
+          "q": "What is in the umbrella pocket?",
+          "opts": [
+            "A phone",
+            "A student card and a receipt",
+            "Some keys",
+            "A notebook"
+          ],
+          "a": 1,
+          "explain": "学生卡和校园书店收据。",
+          "evidence": "A student card and a receipt from the campus bookstore."
+        },
+        {
+          "q": "What must the man do before getting the umbrella back?",
+          "opts": [
+            "Pay a small fee",
+            "Call the office",
+            "Fill in a form",
+            "Wait three days"
+          ],
+          "a": 2,
+          "explain": "填完表格后才能领回。",
+          "evidence": "The umbrella will be returned to you after you fill in this form."
+        }
+      ]
+    }
+  ]
+}

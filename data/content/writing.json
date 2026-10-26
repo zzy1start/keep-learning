@@ -1,0 +1,111 @@
+{
+  "meta": {
+    "note": "仿真题，非真题原文。按真题「年份/场次/题号」结构组织。",
+    "structure": "四级/六级写作：一篇作文 15分或「短文+翻译」。"
+  },
+  "sentenceTasks": [
+    {
+      "en": "Describe the benefits of learning a foreign language.",
+      "cn": "描述学习外语的好处。",
+      "hint": "可从求职、思维拓宽、文化理解三个角度展开，每段给出例子。"
+    },
+    {
+      "en": "Explain why time management matters for students.",
+      "cn": "解释时间管理对学生的意义。",
+      "hint": "建议先给定义，再给两条理由，最后给一个例子。"
+    },
+    {
+      "en": "What are the main causes of stress among college students?",
+      "cn": "大学生压力的主要来源是什么？",
+      "hint": "可用数据化描述 + 分类讨论（学业/经济/社交）。"
+    },
+    {
+      "en": "Do you think online learning will replace traditional classrooms?",
+      "cn": "你认为在线学习会取代传统课堂吗？",
+      "hint": "注意让步结构，先承认优势再给出限制。"
+    },
+    {
+      "en": "The importance of teamwork in modern workplaces.",
+      "cn": "现代职场中团队合作的重要性。",
+      "hint": "可引用研究/例证支撑观点。"
+    }
+  ],
+  "tasks": [
+    {
+      "id": "wr-2023-06-1",
+      "year": 2023,
+      "session": "06",
+      "no": 1,
+      "title": "Some people believe that technological progress makes people's life more convenient, while others think it brings more problems. What is your opinion?",
+      "cn": "有人认为技术进步使生活更便利，另一些人认为它带来更多问题。你怎么看？请给出理由并举例说明。",
+      "level": "CET-6",
+      "genre": "社会热点",
+      "limit": 40,
+      "expectScore": 30,
+      "minWords": 150,
+      "outline": [
+        "引入争议（两种立场）",
+        "分析便利性：效率、医疗、教育",
+        "分析问题：隐私、就业、数字鸿沟",
+        "给出你的立场 + 结论"
+      ]
+    },
+    {
+      "id": "wr-2023-06-2",
+      "year": 2023,
+      "session": "06",
+      "no": 2,
+      "title": "Do you think universities should offer courses in both traditional and simplified Chinese?",
+      "cn": "你认为大学应该开设传统汉语和简体汉语两门课程吗？",
+      "level": "CET-6",
+      "genre": "教育议题",
+      "limit": 40,
+      "expectScore": 30,
+      "minWords": 150,
+      "outline": [
+        "表明立场",
+        "论据一：文化传承",
+        "论据二：现实需求",
+        "让步与结论"
+      ]
+    },
+    {
+      "id": "wr-2023-12-1",
+      "year": 2023,
+      "session": "12",
+      "no": 1,
+      "title": "The importance of developing critical thinking rather than memorising facts in higher education.",
+      "cn": "高等教育中培养批判性思维而非死记硬背的重要性。",
+      "level": "CET-6",
+      "genre": "教育议题",
+      "limit": 40,
+      "expectScore": 30,
+      "minWords": 150,
+      "outline": [
+        "指出现象：重记忆轻思考",
+        "论证批判性思维的长期价值",
+        "给出具体培养方式",
+        "总结"
+      ]
+    },
+    {
+      "id": "wr-2024-06-1",
+      "year": 2024,
+      "session": "06",
+      "no": 1,
+      "title": "Whether public spending should be prioritised on transport infrastructure or on healthcare.",
+      "cn": "公共支出应优先用于交通基础设施还是医疗保健。",
+      "level": "CET-6",
+      "genre": "社会热点",
+      "limit": 40,
+      "expectScore": 30,
+      "minWords": 160,
+      "outline": [
+        "引出两难选择",
+        "交通：经济效率 + 通勤时间",
+        "医疗：基本保障 + 公平",
+        "给出优先级判断与条件"
+      ]
+    }
+  ]
+}

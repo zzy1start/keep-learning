@@ -1,0 +1,258 @@
+{
+  "formatVersion": 1,
+  "recordedAt": "2026-10-17",
+  "note": "录制自一次 CET-6 样卷导入（AI 输出按批次固定保存，用于重放度量）",
+  "meta": {
+    "type": "cet6",
+    "year": 2024,
+    "session": "06"
+  },
+  "paper": "Part I Writing\nDirections: For this part, you are allowed 30 minutes to write an essay on the importance of reading.\nPart II Listening Comprehension\nSection A\nQuestions 16 to 18 are based on the following passage.\nListening body paragraph.\n16. Listening question 16.\nA) First option.\nB) Second option.\nC) Third option.\nD) Fourth option.\n17. Listening question 17.\nA) Alpha.\nB) Beta.\nC) Gamma.\nD) Delta.\n18. Listening question 18.\nA) One.\nB) Two.\nC) Three.\nD) Four.\nPart III Reading Comprehension\nSection C\nPassage One\nQuestions 46 to 48 are based on the following passage.\nReading body one.\n46. What did the teachers compare in the reading programme?\nA) Reading habits.\nB) School buildings.\nC) Sports results.\nD) Meal plans.\n47. What did the school introduce?\nA) A reading programme.\nB) A sports programme.\nC) A music programme.\nD) A lunch programme.\n48. What did teachers collect?\nA) Information about reading habits.\nB) Information about exam marks.\nC) Information about weather.\nD) Information about meals.\nPassage Two\nQuestions 51 to 52 are based on the following passage.\nReading body two.\n51. What did the researchers follow?\nA) The participants.\nB) The teachers.\nC) The school.\nD) The parents.\n52. What changed the decisions people made?\nA) Knowing a little about a neighbour.\nB) Reading a newspaper.\nC) Watching television.\nD) Talking to a teacher.\nPart IV Translation\nAn unrelated translation exercise follows here.\n",
+  "recordings": [
+    {
+      "latencyMs": 1200,
+      "output": {
+        "module": "writing",
+        "complete": true,
+        "items": [
+          {
+            "writingType": "essay",
+            "prompt": "For this part, you are allowed 30 minutes to write an essay on the importance of reading.",
+            "title": "Recorded Writing"
+          }
+        ]
+      },
+      "retry": null
+    },
+    {
+      "latencyMs": 1800,
+      "output": {
+        "module": "listening",
+        "complete": true,
+        "items": [
+          {
+            "title": "Listening Recorded",
+            "words": [],
+            "script": [
+              {
+                "s": 0,
+                "en": "Listening body paragraph."
+              }
+            ],
+            "qs": [
+              {
+                "number": 16,
+                "q": "Listening question 16.",
+                "opts": [
+                  "First option.",
+                  "Second option.",
+                  "Third option.",
+                  "Fourth option."
+                ],
+                "a": null
+              },
+              {
+                "number": 17,
+                "q": "Listening question 17.",
+                "opts": [
+                  "Alpha.",
+                  "Beta.",
+                  "Gamma.",
+                  "Delta."
+                ],
+                "a": null
+              },
+              {
+                "number": 18,
+                "q": "Listening question 18.",
+                "opts": [
+                  "One.",
+                  "Two.",
+                  "Three.",
+                  "Four."
+                ],
+                "a": null
+              }
+            ]
+          }
+        ]
+      },
+      "retry": null
+    },
+    {
+      "latencyMs": 2600,
+      "output": {
+        "module": "reading",
+        "complete": true,
+        "items": [
+          {
+            "readingType": "traditional",
+            "title": "Reading Recorded",
+            "paragraphs": [
+              "recorded body"
+            ],
+            "questions": [
+              {
+                "number": 46,
+                "q": "What did the teachers compare in the reading programme?",
+                "opts": [
+                  "Reading habits.",
+                  "School buildings.",
+                  null,
+                  "Meal plans."
+                ],
+                "a": null
+              },
+              {
+                "number": 47,
+                "q": "What did the school introduce?",
+                "opts": [
+                  "A reading programme.",
+                  "A sports programme.",
+                  "A music programme.",
+                  "A lunch programme."
+                ],
+                "a": null
+              },
+              {
+                "number": 48,
+                "q": "What did teachers collect?",
+                "opts": [
+                  "Information about reading habits.",
+                  "Information about exam marks.",
+                  "Information about weather.",
+                  "Information about meals."
+                ],
+                "a": null
+              },
+              {
+                "number": 51,
+                "q": "What did the researchers follow?",
+                "opts": [
+                  "The participants.",
+                  "The teachers.",
+                  "The school.",
+                  "The parents."
+                ],
+                "a": null
+              },
+              {
+                "number": 52,
+                "q": "What changed the decisions people made?",
+                "opts": [
+                  "Knowing a little about a neighbour.",
+                  "Reading a newspaper.",
+                  "Watching television.",
+                  "Talking to a teacher."
+                ],
+                "a": null
+              }
+            ]
+          }
+        ]
+      },
+      "retry": {
+        "latencyMs": 1900,
+        "output": {
+          "module": "reading",
+          "complete": true,
+          "items": [
+            {
+              "readingType": "traditional",
+              "title": "Reading Recorded",
+              "paragraphs": [
+                "recorded body"
+              ],
+              "questions": [
+                {
+                  "number": 46,
+                  "q": "What did the teachers compare in the reading programme?",
+                  "opts": [
+                    "Reading habits.",
+                    "School buildings.",
+                    "Sports results.",
+                    "Meal plans."
+                  ],
+                  "a": null
+                },
+                {
+                  "number": 47,
+                  "q": "What did the school introduce?",
+                  "opts": [
+                    "A reading programme.",
+                    "A sports programme.",
+                    "A music programme.",
+                    "A lunch programme."
+                  ],
+                  "a": null
+                },
+                {
+                  "number": 48,
+                  "q": "What did teachers collect?",
+                  "opts": [
+                    "Information about reading habits.",
+                    "Information about exam marks.",
+                    "Information about weather.",
+                    "Information about meals."
+                  ],
+                  "a": null
+                },
+                {
+                  "number": 51,
+                  "q": "What did the researchers follow?",
+                  "opts": [
+                    "The participants.",
+                    "The teachers.",
+                    "The school.",
+                    "The parents."
+                  ],
+                  "a": null
+                },
+                {
+                  "number": 52,
+                  "q": "What changed the decisions people made?",
+                  "opts": [
+                    "Knowing a little about a neighbour.",
+                    "Reading a newspaper.",
+                    "Watching television.",
+                    "Talking to a teacher."
+                  ],
+                  "a": null
+                }
+              ]
+            }
+          ]
+        }
+      }
+    },
+    {
+      "latencyMs": 1200,
+      "output": {
+        "module": "writing",
+        "complete": true,
+        "items": [
+          {
+            "writingType": "essay",
+            "prompt": "An unrelated translation exercise follows here.",
+            "title": "Recorded Writing"
+          }
+        ]
+      },
+      "retry": null
+    }
+  ],
+  "expected": {
+    "listening": [
+      16,
+      17,
+      18
+    ],
+    "reading": [
+      46,
+      47,
+      48,
+      51,
+      52
+    ]
+  }
+}

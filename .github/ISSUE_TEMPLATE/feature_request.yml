@@ -1,0 +1,39 @@
+name: Feature request
+description: 建议一个新功能或改进
+title: "[Feature] "
+labels: ["enhancement"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        请说明使用场景，而不是只写“加一个 XX 功能”。
+  - type: textarea
+    id: problem
+    attributes:
+      label: 你想解决什么问题？
+      placeholder: 目前在什么场景下不方便...
+    validations:
+      required: true
+  - type: textarea
+    id: proposal
+    attributes:
+      label: 你建议怎么做？
+    validations:
+      required: true
+  - type: dropdown
+    id: platform
+    attributes:
+      label: 主要平台
+      options:
+        - Android APK
+        - 浏览器 / PWA
+        - Windows 桌面
+        - iOS / iPad
+        - 不限
+  - type: checkboxes
+    id: scope
+    attributes:
+      label: 确认
+      options:
+        - label: 这个功能不依赖上传用户数据到服务器
+          required: false

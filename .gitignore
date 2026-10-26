@@ -1,0 +1,72 @@
+# ===== Node dependencies =====
+node_modules/
+.pnpm-store/
+
+# ===== 构建产物 =====
+# Capacitor 打包用的资源目录（由 tools/build-android.cjs 生成）
+dist-android/
+
+# Android 工程：由 `npx cap add android` + tools/init-android.cjs 生成
+# 插件源码保存在 native/android/ 下，不随工程丢弃
+# 注意：必须用前导斜杠，只忽略根级 android/，否则会误伤 native/android/
+/android/
+
+# 签名材料：绝不入库
+*.keystore
+*.jks
+keystore.properties
+keystore.properties.local
+
+# 大体积资源（构建时生成或按需下载，不入库）
+assets/audio/
+assets/models/
+audio-raw/
+audition-piper/
+debug/
+work/
+
+# 打包产物
+*.apk
+*.aab
+*.ap_
+*.idsig
+
+# ===== 本地缓存与运行时输出 =====
+.cache/
+*.log
+*.tmp
+*.temp
+*.tsbuildinfo
+
+# ===== 本地环境与密钥 =====
+.env
+.env.*
+!.env.example
+secrets.json
+credentials.json
+
+# ===== 操作系统与编辑器噪音 =====
+Thumbs.db
+Desktop.ini
+.DS_Store
+.idea/
+.vscode/
+*.swp
+
+# ===== 无关项目残留 =====
+# gwy-2027 为公务员考试选岗分析脚本，与本项目无关，不随仓库分发
+gwy-2027/
+
+# ===== 上游原始数据与本地资料（不随仓库分发）=====
+raw/
+local-tts-models/
+local-tts-models-old/
+
+# ===== 个人内容备份（tools/strip-personal.cjs 生成）=====
+work/personal-content-backup/
+
+# ===== 其他 =====
+*.zip
+*.7z
+*.hprof
+.kotlin/

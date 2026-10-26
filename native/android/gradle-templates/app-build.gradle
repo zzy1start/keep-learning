@@ -1,0 +1,87 @@
+apply plugin: 'com.android.application'
+// 正式签名配置：读取项目根目录的 keystore.properties（该文件不入库）
+// 不存在时自动回退到 debug 签名，仅供本地测试
+def keystorePropsFile = rootProject.file('../keystore.properties')
+def keystoreProps = new Properties()
+if (keystorePropsFile.exists()) {
+    keystorePropsFile.withInputStream { keystoreProps.load(it) }
+}
+// storeFile 在 keystore.properties 里写的是相对路径（如 keell-release.jks），
+// 必须相对该 properties 文件所在目录解析。若直接用 rootProject.file()，
+// 会相对 android/ 解析成 android/keell-release.jks，而实际文件在工程根目录，
+// 结果是 release 构建报"keystore file not found"。
+def keystoreDir = keystorePropsFile.exists() ? keystorePropsFile.parentFile : null
+
+
+android {
+    namespace "com.keeplrn.tablet"
+    compileSdk rootProject.ext.compileSdkVersion
+    defaultConfig {
+        applicationId "com.keeplrn.tablet"
+        minSdkVersion rootProject.ext.minSdkVersion
+        targetSdkVersion rootProject.ext.targetSdkVersion
+        versionCode 49
+        versionName "1.1.25-test"
+        testInstrumentationRunner "androidx.test.runner.AndroidJUnitRunner"
+        ndk { abiFilters 'arm64-v8a' }
+        aaptOptions {
+             // Files and dirs to omit from the packaged assets dir, modified to accommodate modern web apps.
+             // Default: https://android.googlesource.com/platform/frameworks/base/+/282e181b58cf72b6ca770dc7ca5f91f135444502/tools/aapt/AaptAssets.cpp#61
+            ignoreAssetsPattern '!.svn:!.git:!.ds_store:!*.scc:.*:!CVS:!thumbs.db:!picasa.ini:!*~'
+        }
+    }
+    signingConfigs {
+        if (keystoreProps['storeFile'] && keystoreDir) {
+            release {
+                def ksName = keystoreProps['storeFile']
+                def ksRaw = new File(ksName)
+                storeFile ksRaw.isAbsolute() ? ksRaw : new File(keystoreDir, ksName)
+                storePassword keystoreProps['storePassword']
+                keyAlias keystoreProps['keyAlias']
+                keyPassword keystoreProps['keyPassword']
+            }
+        }
+    }
+    buildTypes {
+        release {
+            minifyEnabled false
+            proguardFiles getDefaultProguardFile('proguard-android.txt'), 'proguard-rules.pro'
+            // 注意 Groovy 优先级：'&&' 高于 '?:'，若不整体加括号，
+            // 'a && b ? x : y' 会被解析为 'a && (b ? x : y)'，
+            // 结果类型变成 Boolean，报 "Boolean cannot be cast to SigningConfig"。
+            signingConfig ((keystoreProps['storeFile'] && keystoreDir) ? signingConfigs.release : signingConfigs.debug)
+        }
+    }
+}
+
+repositories {
+    flatDir{
+        dirs '../capacitor-cordova-android-plugins/src/main/libs', 'libs'
+    }
+}
+
+dependencies {
+    implementation fileTree(include: ['*.jar'], dir: 'libs')
+    implementation files('libs/sherpa-onnx.aar')
+    implementation "org.jetbrains.kotlin:kotlin-stdlib:1.9.24"
+    implementation "com.tom-roush:pdfbox-android:2.0.27.0"
+    implementation "androidx.appcompat:appcompat:$androidxAppCompatVersion"
+    implementation "androidx.coordinatorlayout:coordinatorlayout:$androidxCoordinatorLayoutVersion"
+    implementation "androidx.core:core-splashscreen:$coreSplashScreenVersion"
+    implementation project(':capacitor-android')
+    testImplementation "junit:junit:$junitVersion"
+    androidTestImplementation "androidx.test.ext:junit:$androidxJunitVersion"
+    androidTestImplementation "androidx.test.espresso:espresso-core:$androidxEspressoCoreVersion"
+    implementation project(':capacitor-cordova-android-plugins')
+}
+
+apply from: 'capacitor.build.gradle'
+
+try {
+    def servicesJSON = file('google-services.json')
+    if (servicesJSON.text) {
+        apply plugin: 'com.google.gms.google-services'
+    }
+} catch(Exception e) {
+    logger.info("google-services.json not found, google-services plugin not applied. Push Notifications won't work")
+}

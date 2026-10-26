@@ -1,0 +1,184 @@
+{
+  "formatVersion": 1,
+  "recordedAt": "2026-10-17",
+  "note": "考研 Text1/2 + 翻译 录制",
+  "meta": {
+    "type": "kaoyan",
+    "year": 2024,
+    "session": "other"
+  },
+  "paper": "Section II Reading Comprehension\nPart A\nText 1\nQuestions 21 to 25 are based on the following text.\nText one body.\n21. Question 21.\nA) Option A21.\nB) Option B21.\nC) Option C21.\nD) Option D21.\n22. Question 22.\nA) Option A22.\nB) Option B22.\nC) Option C22.\nD) Option D22.\n23. Question 23.\nA) Option A23.\nB) Option B23.\nC) Option C23.\nD) Option D23.\n24. Question 24.\nA) Option A24.\nB) Option B24.\nC) Option C24.\nD) Option D24.\n25. Question 25.\nA) Option A25.\nB) Option B25.\nC) Option C25.\nD) Option D25.\nText 2\nQuestions 26 to 30 are based on the following text.\nText two body.\n26. Question 26.\nA) Option A26.\nB) Option B26.\nC) Option C26.\nD) Option D26.\n27. Question 27.\nA) Option A27.\nB) Option B27.\nC) Option C27.\nD) Option D27.\n28. Question 28.\nA) Option A28.\nB) Option B28.\nC) Option C28.\nD) Option D28.\n29. Question 29.\nA) Option A29.\nB) Option B29.\nC) Option C29.\nD) Option D29.\n30. Question 30.\nA) Option A30.\nB) Option B30.\nC) Option C30.\nD) Option D30.\nSection III Translation\nPart C\nTranslate the following text into Chinese.\nThe translation material goes here.\n",
+  "expected": {
+    "reading": [
+      21,
+      22,
+      23,
+      24,
+      25,
+      26,
+      27,
+      28,
+      29,
+      30
+    ]
+  },
+  "recordings": [
+    {
+      "latencyMs": 2000,
+      "output": {
+        "module": "reading",
+        "complete": true,
+        "items": [
+          {
+            "readingType": "traditional",
+            "title": "Passage Recorded",
+            "genre": "reading",
+            "paragraphs": [
+              "recorded body"
+            ],
+            "questions": [
+              {
+                "number": 21,
+                "q": "Question 21.",
+                "opts": [
+                  "Option A21.",
+                  "Option B21.",
+                  "Option C21.",
+                  "Option D21."
+                ],
+                "a": null
+              },
+              {
+                "number": 22,
+                "q": "Question 22.",
+                "opts": [
+                  "Option A22.",
+                  "Option B22.",
+                  "Option C22.",
+                  "Option D22."
+                ],
+                "a": null
+              },
+              {
+                "number": 23,
+                "q": "Question 23.",
+                "opts": [
+                  "Option A23.",
+                  "Option B23.",
+                  "Option C23.",
+                  "Option D23."
+                ],
+                "a": null
+              },
+              {
+                "number": 24,
+                "q": "Question 24.",
+                "opts": [
+                  "Option A24.",
+                  "Option B24.",
+                  "Option C24.",
+                  "Option D24."
+                ],
+                "a": null
+              },
+              {
+                "number": 25,
+                "q": "Question 25.",
+                "opts": [
+                  "Option A25.",
+                  "Option B25.",
+                  "Option C25.",
+                  "Option D25."
+                ],
+                "a": null
+              },
+              {
+                "number": 26,
+                "q": "Question 26.",
+                "opts": [
+                  "Option A26.",
+                  "Option B26.",
+                  "Option C26.",
+                  "Option D26."
+                ],
+                "a": null
+              },
+              {
+                "number": 27,
+                "q": "Question 27.",
+                "opts": [
+                  "Option A27.",
+                  "Option B27.",
+                  "Option C27.",
+                  "Option D27."
+                ],
+                "a": null
+              },
+              {
+                "number": 28,
+                "q": "Question 28.",
+                "opts": [
+                  "Option A28.",
+                  "Option B28.",
+                  "Option C28.",
+                  "Option D28."
+                ],
+                "a": null
+              },
+              {
+                "number": 29,
+                "q": "Question 29.",
+                "opts": [
+                  "Option A29.",
+                  "Option B29.",
+                  "Option C29.",
+                  "Option D29."
+                ],
+                "a": null
+              },
+              {
+                "number": 30,
+                "q": "Question 30.",
+                "opts": [
+                  "Option A30.",
+                  "Option B30.",
+                  "Option C30.",
+                  "Option D30."
+                ],
+                "a": null
+              }
+            ]
+          }
+        ]
+      },
+      "retry": null
+    },
+    {
+      "latencyMs": 1100,
+      "output": {
+        "module": "writing",
+        "complete": true,
+        "items": [
+          {
+            "writingType": "translation",
+            "prompt": "Translate the following text into Chinese."
+          }
+        ]
+      },
+      "retry": {
+        "latencyMs": 1600,
+        "output": {
+          "module": "writing",
+          "complete": true,
+          "items": [
+            {
+              "writingType": "translation",
+              "prompt": "Translate the following text into Chinese.",
+              "translationText": "The translation material goes here."
+            }
+          ]
+        }
+      }
+    }
+  ]
+}

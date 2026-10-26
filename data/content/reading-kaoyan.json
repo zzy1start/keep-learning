@@ -1,0 +1,452 @@
+{
+  "meta": {
+    "note": "考研英语仿真题，非真题原文，按考研英语完形填空、新题型与阅读理解的练习形式组织。",
+    "structure": "提供完形填空及英语一、英语二阅读理解仿真练习；文章与答案均为练习内容，不代表官方真题。"
+  },
+  "passages": [
+    {
+      "id": "ky-t1",
+      "year": 0,
+      "session": "english-1",
+      "no": 1,
+      "title": "校园空间与数字学习",
+      "level": "考研",
+      "genre": "完形填空",
+      "timeLimit": 20,
+      "totalScore": 10,
+      "paragraphs": [
+        "The concept of \"learning in the digital age\" has (1)______ how universities allocate physical space. For decades, campuses were built (2)______ lecture halls and libraries, but that model is now being (3)______ by demand for flexible, interactive environments. Administrators argue that buildings alone cannot (4)______ educational outcomes; what matters is whether the spaces encourage the kind of (5)______ thinking that employers increasingly value.",
+        "Critics, however, contend that the shift is being driven less by pedagogy than by marketing. Universities are (6)______ tuition revenue, and a glossy new building is easier to announce than a meaningful curriculum reform. More importantly, evidence on the (7)______ of such investments remains thin. A few studies suggest collaborative spaces may (8)______ retention, but most have relied on (9)______ self-reported data rather than controlled comparisons. Without rigorous (10)______, schools risk mistaking architectural symbolism for educational substance.",
+        "Critics raise a further objection. Reform of this kind requires cooperation among departments that historically (11)______ for the same budget and the same academic credit, and such cooperation cannot be mandated from above without generating resistance. A (12)______ approach, beginning with a small number of elective modules and expanding only where evaluation supports it, is more likely to succeed. Institutions that have (13)______ tried it report that the resistance diminishes once colleagues see that the new courses attract students rather than (14)______ them. The lesson, again, is that reform works where it is allowed to grow from practice rather than imposed by policy."
+      ],
+      "questions": [
+        {
+          "q": "1. The concept of \"learning in the digital age\" has ___ how universities allocate physical space.",
+          "opts": [
+            "transformed",
+            "translated",
+            "converted",
+            "altered"
+          ],
+          "a": 0,
+          "explain": "transform 与 how 搭配，表示「从根本上改变了」；translate 一般搭配 translate sth into sth；convert 需接 into；altered 语气弱且与前句时态呼应不佳。",
+          "evidence": "has (1)______ how universities allocate physical space"
+        },
+        {
+          "q": "2. Campuses were originally built ___ lecture halls and libraries.",
+          "opts": [
+            "around",
+            "along",
+            "among",
+            "across"
+          ],
+          "a": 0,
+          "explain": "be built around 表示「围绕……而建」，符合 campus 由教学设施环绕的语义。",
+          "evidence": "campuses were built (2)______ lecture halls and libraries"
+        },
+        {
+          "q": "3. That model is now being ___ by demand for flexible environments.",
+          "opts": [
+            "displaced",
+            "replaced",
+            "substituted",
+            "superseded"
+          ],
+          "a": 1,
+          "explain": "replace 常用于被动语态「被……取代」；此处 by 结构要求被动，replaced 最自然。",
+          "evidence": "being (3)______ by demand"
+        },
+        {
+          "q": "4. Administrators argue that buildings alone cannot ___ educational outcomes.",
+          "opts": [
+            "alter",
+            "affect",
+            "determine",
+            "shape"
+          ],
+          "a": 2,
+          "explain": "语义是否定式「建筑本身无法决定教育结果」，determine 表示决定性因果，最贴合。",
+          "evidence": "buildings alone cannot (4)______ educational outcomes"
+        },
+        {
+          "q": "5. The kind of ___ thinking that employers increasingly value.",
+          "opts": [
+            "critical",
+            "creative",
+            "practical",
+            "theoretical"
+          ],
+          "a": 1,
+          "explain": "前文强调 flexible, interactive environments，对应创意/协作性思维，选 creative。",
+          "evidence": "encourage the kind of (5)______ thinking"
+        },
+        {
+          "q": "6. Universities are ___ tuition revenue.",
+          "opts": [
+            "competing for",
+            "competing with",
+            "competing on",
+            "competing against"
+          ],
+          "a": 0,
+          "explain": "compete for 表示「争夺（资源）」；此处 are 后应接现在分词 competing。",
+          "evidence": "Universities are (6)______ tuition revenue"
+        },
+        {
+          "q": "7. Evidence on the ___ of such investments remains thin.",
+          "opts": [
+            "efficacy",
+            "efficiency",
+            "effect",
+            "affect"
+          ],
+          "a": 0,
+          "explain": "evidence on the efficacy of investments 固定搭配，「效力/实效」；efficiency 侧重效率。",
+          "evidence": "evidence on the (7)______ of such investments remains thin"
+        },
+        {
+          "q": "8. Collaborative spaces may ___ retention.",
+          "opts": [
+            "affect",
+            "impact",
+            "improve",
+            "raise"
+          ],
+          "a": 2,
+          "explain": "后文「evidence thin」隐含正面作用，improve retention（提高留存率）符合语境。",
+          "evidence": "collaborative spaces may (8)______ retention"
+        },
+        {
+          "q": "9. Most have relied on ___ self-reported data rather than controlled comparisons.",
+          "opts": [
+            "subjective",
+            "largely",
+            "partial",
+            "derived"
+          ],
+          "a": 1,
+          "explain": "largely self-reported data 表示数据主要来自受访者自报，与后文的对照研究形成对比。",
+          "evidence": "relied on (9)______ self-reported data"
+        },
+        {
+          "q": "10. Without rigorous ___, schools risk mistaking symbolism for substance.",
+          "opts": [
+            "analysis",
+            "evidence",
+            "research",
+            "assessment"
+          ],
+          "a": 1,
+          "explain": "前文批评「evidence remains thin」，此处 Without rigorous evidence 呼应，首尾照应。",
+          "evidence": "Without rigorous (10)______, schools risk mistaking architectural symbolism"
+        },
+        {
+          "q": "11. Reform of this kind requires cooperation among departments that historically ______ for the same budget.",
+          "opts": [
+            "compete",
+            "compete with",
+            "compete for",
+            "compete on"
+          ],
+          "a": 0,
+          "explain": "compete for 表示「争夺（资源）」；compete with/against 需接竞争者。",
+          "evidence": "requires cooperation among departments that historically (11)______ for the same budget"
+        },
+        {
+          "q": "12. A ______ approach, beginning with a small number of elective modules, is more likely to succeed.",
+          "opts": [
+            "gradual",
+            "sudden",
+            "radical",
+            "hasty"
+          ],
+          "a": 0,
+          "explain": "与后半句「逐步扩展、仅在评估支持时才扩大」呼应，应为 gradual（渐进的）。",
+          "evidence": "A gradual approach, beginning with a small number of elective modules and expanding only where evaluation supports it"
+        },
+        {
+          "q": "13. Institutions that have ______ tried this report that resistance diminishes over time.",
+          "opts": [
+            "deliberately",
+            "repeatedly",
+            "occasionally",
+            "secretly"
+          ],
+          "a": 1,
+          "explain": "后文说同事们看到新课程吸引学生后抵触减少，说明是「反复尝试过」→ repeatedly。",
+          "evidence": "Institutions that have repeatedly tried it report that the resistance diminishes"
+        },
+        {
+          "q": "14. The new courses attract students rather than ______ them.",
+          "opts": [
+            "repelling",
+            "rejecting",
+            "refusing",
+            "resisting"
+          ],
+          "a": 0,
+          "explain": "attract A rather than B 的并列结构；此处 B 需与 attract 相对，repelling（排斥）最贴切。",
+          "evidence": "the new courses attract students rather than repelling them"
+        }
+      ],
+      "wordCount": 247,
+      "readingType": "cloze",
+      "examPaper": "english-1",
+      "examPart": "完形填空",
+      "pickerLabel": "完形填空"
+    },
+    {
+      "id": "ky-t2",
+      "year": 0,
+      "session": "english-1",
+      "no": 2,
+      "title": "The Case for Boredom",
+      "level": "考研",
+      "genre": "Text 1",
+      "timeLimit": 15,
+      "totalScore": 10,
+      "paragraphs": [
+        "A. The most productive use of downtime may be the least obviously productive of all. (1) When people are given unstructured time, they do not fill it with productivity; they daydream, drift, and occasionally lose track of what they were doing. Long dismissed as laziness, this mental drift is now the subject of serious research on how creativity actually develops.",
+        "B. (2) One classic experiment asked participants to solve anagrams under two conditions. Those who worked on a straightforward task first went on to produce more creative solutions than those who tackled the hard problem immediately. The implication is not that difficulty is bad, but that ease creates the slack in which insight can occur.",
+        "C. (3) The economic implications are harder to measure. Because boredom feels unpleasant, both workers and managers tend to treat it as something to be eliminated — a waste of paid time. Yet the assumption that engagement must be continuous runs against everything we know about how expertise develops.",
+        "D. (4) A quieter implication concerns learning itself. Students who are given the impression that every minute must be optimized often lose the willingness to struggle with material they do not immediately understand. The very discomfort that discourages them may be the mechanism that makes the knowledge stick.",
+        "E. (5) None of this is an argument for eliminating deadlines or abandoning hard work. Structured effort and deliberate practice remain the foundation of expertise. The point is narrower: a culture of permanent busyness leaves no room for the unforced association that problem-solving appears to reward."
+      ],
+      "questions": [
+        {
+          "q": "1. The opening paragraph is mainly concerned with",
+          "opts": [
+            "the economic cost of boredom",
+            "how unstructured time relates to creativity",
+            "why managers dislike downtime",
+            "the history of daydream research"
+          ],
+          "a": 1,
+          "explain": "A 段首句提出「downtime 可能是最少看似有成效的用法」，随后引出创造力研究，核心是二者关系。",
+          "evidence": "The most productive use of downtime may be the least obviously productive of all."
+        },
+        {
+          "q": "2. The anagram experiment is cited to support the claim that",
+          "opts": [
+            "difficult problems should be avoided",
+            "ease creates conditions for insight",
+            "creativity requires strict deadlines",
+            "experts work harder than beginners"
+          ],
+          "a": 1,
+          "explain": "B 段实验结论明确：ease creates the slack in which insight can occur。",
+          "evidence": "ease creates the slack in which insight can occur"
+        },
+        {
+          "q": "3. Paragraph C focuses on the",
+          "opts": [
+            "personal experience of boredom",
+            "difficulty of measuring boredom's economic value",
+            "methods of self-reported research",
+            "comparison between workers and students"
+          ],
+          "a": 1,
+          "explain": "C 段首句 The economic implications are harder to measure 之后展开论述，属主题句。",
+          "evidence": "The economic implications are harder to measure."
+        },
+        {
+          "q": "4. The point about students is that",
+          "opts": [
+            "they should study fewer hours",
+            "constant optimization discourages persistence",
+            "difficult material is rarely worth learning",
+            "teachers set unreasonable expectations"
+          ],
+          "a": 1,
+          "explain": "D 段指出学生因「每分钟都要优化」而失去啃硬书的意愿。",
+          "evidence": "lose the willingness to struggle with material they do not immediately understand"
+        },
+        {
+          "q": "5. The author concludes by",
+          "opts": [
+            "denying the value of structured practice",
+            "narrowing the claim in favour of some slack",
+            "recommending longer class hours",
+            "rejecting research on creativity"
+          ],
+          "a": 1,
+          "explain": "E 段「None of this is an argument for eliminating deadlines… The point is narrower」明确是收窄主张。",
+          "evidence": "None of this is an argument for eliminating deadlines... The point is narrower"
+        }
+      ],
+      "wordCount": 258,
+      "readingType": "traditional",
+      "examPaper": "english-1",
+      "examPart": "Text 1",
+      "pickerLabel": "Text 1"
+    },
+    {
+      "id": "ky-t3",
+      "year": 0,
+      "session": "english-1",
+      "no": 3,
+      "title": "The Hidden Cost of Free Delivery",
+      "level": "考研",
+      "genre": "Text 2",
+      "timeLimit": 20,
+      "totalScore": 20,
+      "paragraphs": [
+        "When a service is offered at no apparent price, the instinct is to accept it without calculation. Over the past decade that reflex has been trained into consumers by an economy of free shipping, free trials, and free content. The price is rarely zero, but it has been rendered invisible, and the result is a population remarkably ill-suited to notice when it changes.",
+        "The uncomfortable arithmetic became clear to researchers who examined urban delivery markets. They found that the households using free services most frequently were not the ones saving the most money. They were spending more in total, ordering more items, more often, and discarding a larger proportion of what arrived. Convenience, it turns out, is not a discount; it is a substitution. The money is not removed from the bill, only moved to somewhere the customer does not look.",
+        "That displacement has consequences beyond personal budgets. Retailers who subsidize delivery to attract volume must recover the cost somewhere, and experience suggests they recover it in prices that are less transparent. A modest delivery fee, clearly stated, is easily compared against a competitor's. A higher product price, adjusted quietly to absorb logistics, is compared against nothing at all. Regulators in several jurisdictions have begun to require disclosure precisely because the absence of a visible price makes markets harder to police.",
+        "None of this means free delivery is a trick designed against the buyer. For most consumers the net saving is real, and the convenience genuinely has value. The problem is narrower: the absence of a price hides the mechanism by which the saving is achieved. Once customers can see that convenience is paid for, they can decide whether it is worth what it costs — a decision that requires exactly the thing the design removed, which is a number on the screen."
+      ],
+      "questions": [
+        {
+          "q": "What does the author mean by saying that the free-service economy has rendered the price \"invisible\"?",
+          "opts": [
+            "Consumers are unaware of how much they actually pay.",
+            "Companies have raised their prices in secret.",
+            "The government has banned price displays.",
+            "Prices have actually fallen over the decade."
+          ],
+          "a": 0,
+          "explain": "第一段末「价格并非为零，只是被隐藏」，并说民众「极不适合察觉它何时改变」，即消费者不知实际付出。",
+          "evidence": "The price is rarely zero, but it has been rendered invisible"
+        },
+        {
+          "q": "The research on delivery markets found that heavy users of free services",
+          "opts": [
+            "saved the most money overall",
+            "spent more in total and ordered more often",
+            "discarded less of what they ordered",
+            "switched frequently between competitors"
+          ],
+          "a": 1,
+          "explain": "第二段明确：not the ones saving the most money，but spending more in total, ordering more items, more often。",
+          "evidence": "They were spending more in total, ordering more items, more often"
+        },
+        {
+          "q": "The word \"substitution\" (Para. 2) is closest in meaning to",
+          "opts": [
+            "replacement",
+            "reduction",
+            "compensation",
+            "deduction"
+          ],
+          "a": 0,
+          "explain": "前句说 free services 省钱，后句说「钱没从账单上移除，只是移到别处」，即成本被替换到别处，故为 replacement。",
+          "evidence": "Convenience, it turns out, is not a discount; it is a substitution. The money is... moved to somewhere the customer does not look."
+        },
+        {
+          "q": "Why do regulators now require price disclosure, according to the passage?",
+          "opts": [
+            "Because consumers have stopped caring about prices",
+            "Because invisible prices make markets harder to police",
+            "Because delivery fees are usually hidden in small print",
+            "Because retailers have stopped competing on price."
+          ],
+          "a": 1,
+          "explain": "第三段末：监管要求披露，正因为缺乏可见价格使市场难以监管。",
+          "evidence": "the absence of a visible price makes markets harder to police"
+        },
+        {
+          "q": "What is the author's main purpose in the last paragraph?",
+          "opts": [
+            "To condemn free delivery as deceptive",
+            "To concede a point while narrowing the criticism",
+            "To argue for stricter regulation of retailers",
+            "To recommend raising delivery fees."
+          ],
+          "a": 1,
+          "explain": "末段先承认 net saving is real、convenience has value，再用 The problem is narrower 收窄批评，属「让步后限定」。",
+          "evidence": "None of this means free delivery is a trick... The problem is narrower"
+        }
+      ],
+      "wordCount": 303,
+      "readingType": "traditional",
+      "examPaper": "english-1",
+      "examPart": "Text 2",
+      "pickerLabel": "Text 2"
+    },
+    {
+      "id": "ky-t4",
+      "year": 0,
+      "session": "english-2",
+      "no": 1,
+      "title": "Reforming Public Education",
+      "level": "考研",
+      "genre": "Text 1",
+      "timeLimit": 20,
+      "totalScore": 10,
+      "paragraphs": [
+        "The reason why so many attempts to reform public education have failed deserves more attention than it usually receives. Not because reformers have been careless — on the contrary, most have been exceptionally well-informed — but because the problem they set out to solve is a symptom rather than a cause. (1) What they treat as the disease, unequal outcomes, is the visible expression of a deeper condition: a system that sorts people too early and then spends the rest of its resources compensating for a decision made in childhood.",
+        "This is why the most popular remedies tend to disappoint. (2) Had policy makers understood that sorting decisions are made long before a child enters a formal classroom, they would have looked upstream rather than downstream, at the years between birth and entry, where the disparities first become visible. Instead, attention has focused on schools, which is to say on the point in the process where the damage has already been done and where, consequently, the available remedies are necessarily partial.",
+        "None of this means early intervention is impossible, only that it is expensive and that its benefits arrive late enough to be politically difficult. (3) The comparison that most often gets omitted is with medical care, where prevention is accepted as sound precisely because its costs are visible and its benefits are conventionally assumed. Education has no comparable cultural narrative. To change that, one would have to change what the public is willing to fund, which is to say one would have to change what it believes education is for.",
+        "A fourth difficulty is that the remedies themselves are contested. Those who argue for early intervention point to the returns later in life: a child who acquires language before the age of five tends to perform better in school, and the effect persists into adulthood. Sceptics reply that early advantage is largely inherited, and that programmes designed for children who already have support at home do little for those who do not. Both positions contain an empirical claim, and the disagreement is therefore not one that can be settled by intuition. What is clear is that the debate is conducted almost entirely about interventions delivered to young children, while the policy attention that funding decisions attract has largely shifted towards examinations, league tables, and institutional rankings. The gap between where the evidence points and where the money flows is the most striking feature of the current debate."
+      ],
+      "questions": [
+        {
+          "q": "What does the author identify as the main reason reform attempts fail?",
+          "opts": [
+            "Reformers lack technical expertise",
+            "Reformers are careless with evidence",
+            "The problem being targeted is a symptom rather than a cause",
+            "Funding is insufficient for large-scale reform."
+          ],
+          "a": 2,
+          "explain": "第一段明确：失败不是因粗心，而是因为所解决问题「是症状而非原因」。",
+          "evidence": "the problem they set out to solve is a symptom rather than a cause"
+        },
+        {
+          "q": "The phrase \"sorts people too early\" (Para. 1) refers to",
+          "opts": [
+            "assigning students to ability groups in secondary school",
+            "children entering formal education before they are ready",
+            "employers filtering applicants by age",
+            "the point at which disparities become visible"
+          ],
+          "a": 1,
+          "explain": "后文 the years between birth and entry 与 a decision made in childhood 表明指学前的过早分流。",
+          "evidence": "a system that sorts people too early... a decision made in childhood"
+        },
+        {
+          "q": "The sentence beginning with \"Had policy makers understood\" (Para. 2) is used to",
+          "opts": [
+            "state a fact about the past",
+            "describe an actual historical case",
+            "explain what would have happened under a different approach",
+            "criticize specific policy makers by name."
+          ],
+          "a": 2,
+          "explain": "虚拟语气（Had... they would have）表示对过去另一种做法的假设。",
+          "evidence": "Had policy makers understood... they would have looked upstream rather than downstream"
+        },
+        {
+          "q": "The author's attitude toward early intervention can best be described as",
+          "opts": [
+            "strongly opposed",
+            "cautiously supportive",
+            "completely indifferent",
+            "enthusiastically optimistic"
+          ],
+          "a": 1,
+          "explain": "作者说不 impossible，只是 expensive 且 benefit 来得晚、政治上困难——典型的谨慎支持。",
+          "evidence": "None of this means early intervention is impossible, only that it is expensive"
+        },
+        {
+          "q": "The comparison with medical care is made to show that",
+          "opts": [
+            "education should be reorganized like hospitals",
+            "prevention is accepted in medicine but lacks cultural support in education",
+            "medical care is more expensive than education",
+            "early intervention rarely works in either field."
+          ],
+          "a": 1,
+          "explain": "末段指出医学接受预防是因为成本可见、收益被默认接受，而教育缺少类似的文化叙事。",
+          "evidence": "Education has no comparable cultural narrative"
+        }
+      ],
+      "wordCount": 408,
+      "readingType": "traditional",
+      "examPaper": "english-2",
+      "examPart": "Text 1",
+      "pickerLabel": "Text 1"
+    }
+  ]
+}

@@ -1,0 +1,623 @@
+{
+  "meta": {
+    "note": "仿真题，非真题原文。按真题「年份/场次/篇章」结构组织。",
+    "structure": "六/四级听力：一卷含 Section A 短篇新闻(3篇) + Section B 长对话(2篇) + Section C 短文(3篇)。"
+  },
+  "sentences": [
+    {
+      "en": "Interdisciplinary education encourages students to connect knowledge across different fields.",
+      "cn": "跨学科教育鼓励学生将不同领域的知识联系起来。",
+      "tags": [
+        "教育",
+        "六级"
+      ]
+    },
+    {
+      "en": "The lecture will begin at nine a.m. in the main building.",
+      "cn": "讲座将于上午九点在主楼开始。",
+      "tags": [
+        "日常",
+        "四级"
+      ]
+    },
+    {
+      "en": "Please make sure to submit your assignment before the deadline.",
+      "cn": "请确保在截止日期前提交作业。",
+      "tags": [
+        "校园",
+        "四级"
+      ]
+    },
+    {
+      "en": "Researchers have found that sleep deprivation impairs memory formation.",
+      "cn": "研究人员发现睡眠不足会损害记忆形成。",
+      "tags": [
+        "健康",
+        "六级"
+      ]
+    },
+    {
+      "en": "The company adopted a new marketing strategy to attract younger consumers.",
+      "cn": "该公司采用了一种新的营销策略来吸引年轻消费者。",
+      "tags": [
+        "商务",
+        "六级"
+      ]
+    },
+    {
+      "en": "Climate change poses a serious threat to coastal ecosystems.",
+      "cn": "气候变化对沿海生态系统构成严重威胁。",
+      "tags": [
+        "环境",
+        "六级"
+      ]
+    },
+    {
+      "en": "Although the proposal seemed promising, it was ultimately rejected.",
+      "cn": "尽管这个提案看起来很有前景，但最终被否决了。",
+      "tags": [
+        "六级",
+        "难句"
+      ]
+    },
+    {
+      "en": "Regular exercise not only strengthens the body but also improves mood.",
+      "cn": "规律运动不仅强健身体，还能改善情绪。",
+      "tags": [
+        "健康",
+        "四级"
+      ]
+    },
+    {
+      "en": "The committee has decided to postpone the vote until next month.",
+      "cn": "委员会决定将投票推迟到下个月。",
+      "tags": [
+        "六级",
+        "商务"
+      ]
+    },
+    {
+      "en": "Students are encouraged to take part in international exchange activities.",
+      "cn": "学校鼓励学生参加国际交流活动。",
+      "tags": [
+        "校园",
+        "四级"
+      ]
+    },
+    {
+      "en": "What strikes me most about this policy is how little discussion it has generated.",
+      "cn": "这项政策最让我惊讶的是它引发的讨论如此之少。",
+      "tags": [
+        "六级",
+        "难句"
+      ]
+    },
+    {
+      "en": "The university plans to expand its research programs next year.",
+      "cn": "该校计划明年扩展其研究项目。",
+      "tags": [
+        "校园",
+        "四级"
+      ]
+    }
+  ],
+  "dialogues": [
+    {
+      "id": "dlg-library",
+      "title": "Library Renewal",
+      "level": "CET-4",
+      "type": "short-dialogue",
+      "turns": [
+        {
+          "sp": "W",
+          "en": "Excuse me, could you tell me where the reading room is?",
+          "cn": "打扰一下，阅览室在哪里？"
+        },
+        {
+          "sp": "M",
+          "en": "It's been moved to the third floor since last month.",
+          "cn": "从上个月起已经搬到三楼了。"
+        },
+        {
+          "sp": "W",
+          "en": "Oh, I see. Is it open on weekends?",
+          "cn": "哦，明白了。周末开放吗？"
+        },
+        {
+          "sp": "M",
+          "en": "Yes, from nine to five on Saturdays and Sundays.",
+          "cn": "是的，周六日早上九点到下午五点。"
+        }
+      ],
+      "qs": [
+        {
+          "q": "Where is the reading room now?",
+          "opts": [
+            "On the third floor",
+            "On the second floor",
+            "Next to the library",
+            "In the main building"
+          ],
+          "a": 0,
+          "tip": "关键信息为 moved to the third floor，注意 since last month 的时间限定。"
+        },
+        {
+          "q": "Is the reading room open at weekends?",
+          "opts": [
+            "Yes, but only on Saturdays",
+            "No, it is closed",
+            "Yes, on both days",
+            "Only for students"
+          ],
+          "a": 2,
+          "tip": "on Saturdays and Sundays 说明两天都开放。"
+        }
+      ]
+    },
+    {
+      "id": "dlg-interview",
+      "title": "Job Interview",
+      "level": "CET-6",
+      "type": "short-dialogue",
+      "turns": [
+        {
+          "sp": "M",
+          "en": "So, what made you apply for this position?",
+          "cn": "那么，是什么促使你申请这个职位？"
+        },
+        {
+          "sp": "W",
+          "en": "I have worked in data analysis for three years, and I want to take on more responsibility.",
+          "cn": "我从事数据分析已经三年了，想承担更多责任。"
+        },
+        {
+          "sp": "M",
+          "en": "That makes sense. Do you have any questions for us?",
+          "cn": "这说得通。你有什么想问我们的吗？"
+        },
+        {
+          "sp": "W",
+          "en": "Yes. How often does the team hold performance reviews?",
+          "cn": "有的。团队多久进行一次绩效评估？"
+        }
+      ],
+      "qs": [
+        {
+          "q": "Why does the woman apply for the position?",
+          "opts": [
+            "She wants more responsibility",
+            "She needs a higher salary",
+            "Her current job closed",
+            "She likes the company"
+          ],
+          "a": 0,
+          "tip": "take on more responsibility 是直接原因。"
+        },
+        {
+          "q": "What does the woman ask about?",
+          "opts": [
+            "Working hours",
+            "Performance reviews",
+            "Team size",
+            "Salary"
+          ],
+          "a": 1,
+          "tip": "最后一句问的是 performance reviews。"
+        }
+      ]
+    }
+  ],
+  "passages": [
+    {
+      "id": "ls-2023-06-1",
+      "year": 2023,
+      "session": "06",
+      "no": 1,
+      "title": "The Rise of Online Learning",
+      "level": "CET-6",
+      "type": "cet6",
+      "genre": "教育科技",
+      "words": [
+        "online learning",
+        "flexibility",
+        "interaction",
+        "discipline",
+        "completion rate"
+      ],
+      "script": [
+        {
+          "s": 0,
+          "en": "Online learning has grown rapidly over the past decade. What was once considered a supplement to classroom teaching is now, for many students, the primary mode of instruction."
+        },
+        {
+          "s": 1,
+          "en": "The most obvious advantage is flexibility. Students can attend lectures recorded at any time and submit assignments whenever convenient."
+        },
+        {
+          "s": 2,
+          "en": "However, flexibility alone does not guarantee success. Research consistently shows that completion rates in online courses remain lower than in traditional classrooms."
+        },
+        {
+          "s": 3,
+          "en": "The reason, most educators agree, is a lack of discipline and social interaction. Without a fixed schedule, students easily procrastinate."
+        },
+        {
+          "s": 4,
+          "en": "Some universities have responded by redesigning courses around short modules with regular quizzes, which keeps students engaged week by week."
+        },
+        {
+          "s": 5,
+          "en": "In short, online learning works best when it is structured rather than left entirely to the student's own time management."
+        }
+      ],
+      "qs": [
+        {
+          "q": "What is the main purpose of the talk?",
+          "opts": [
+            "To introduce a new research project",
+            "To explain the results of a recent survey",
+            "To compare online and classroom learning",
+            "To announce a change in university policy"
+          ],
+          "a": 2,
+          "tip": "全文围绕线上学习与传统课堂的对比展开，注意首句与末句的总结句。"
+        },
+        {
+          "q": "According to the speaker, what is the most obvious advantage of online learning?",
+          "opts": [
+            "Lower tuition fees",
+            "Flexibility",
+            "Better interaction with teachers",
+            "Higher completion rates"
+          ],
+          "a": 1,
+          "tip": "The most obvious advantage is flexibility 属于信号词句。"
+        },
+        {
+          "q": "What does research show about completion rates?",
+          "opts": [
+            "They are higher online",
+            "They are lower online",
+            "They are about the same",
+            "They have not been studied"
+          ],
+          "a": 1,
+          "tip": "remain lower than in traditional classrooms，注意 remain 的语义倾向。"
+        },
+        {
+          "q": "Why do completion rates fall, according to most educators?",
+          "opts": [
+            "Poor internet connections",
+            "Lack of discipline and interaction",
+            "Expensive course materials",
+            "Difficult examinations"
+          ],
+          "a": 1,
+          "tip": "a lack of discipline and social interaction 是因果句。"
+        },
+        {
+          "q": "What have some universities done in response?",
+          "opts": [
+            "Lowered tuition fees",
+            "Redesigned courses into short modules",
+            "Reduced course length",
+            "Hired more teachers"
+          ],
+          "a": 1,
+          "tip": "redesigning courses around short modules。"
+        },
+        {
+          "q": "What is the speaker's final point?",
+          "opts": [
+            "Online learning should replace classrooms",
+            "Structured design works best",
+            "Students should self-manage time",
+            "Recordings are more useful than live lectures"
+          ],
+          "a": 1,
+          "tip": "works best when it is structured 是结论句。"
+        }
+      ]
+    },
+    {
+      "id": "ls-2023-06-2",
+      "year": 2023,
+      "session": "06",
+      "no": 2,
+      "title": "Urban Green Space",
+      "level": "CET-6",
+      "type": "cet6",
+      "genre": "城市环境",
+      "words": [
+        "urban green space",
+        "heat island",
+        "biodiversity",
+        "well-being",
+        "investment"
+      ],
+      "script": [
+        {
+          "s": 0,
+          "en": "Cities around the world are losing their green space at an alarming rate as land values rise."
+        },
+        {
+          "s": 1,
+          "en": "This matters more than it may appear. Trees and parks reduce the heat island effect that makes urban summers dangerously hot."
+        },
+        {
+          "s": 2,
+          "en": "They also support biodiversity, providing habitat for birds and insects that would otherwise disappear entirely."
+        },
+        {
+          "s": 3,
+          "en": "Studies have repeatedly linked access to green space with improved mental well-being among residents."
+        },
+        {
+          "s": 4,
+          "en": "Some city governments now treat green space not as decoration, but as essential infrastructure."
+        },
+        {
+          "s": 5,
+          "en": "They are investing in rooftop gardens and restoring wetlands, even where land is extremely scarce."
+        }
+      ],
+      "qs": [
+        {
+          "q": "Why are cities losing green space?",
+          "opts": [
+            "Rising land values",
+            "Air pollution",
+            "Lack of planning",
+            "Overpopulation"
+          ],
+          "a": 0,
+          "tip": "as land values rise 是原因状语。"
+        },
+        {
+          "q": "According to the talk, one effect of trees and parks is to:",
+          "opts": [
+            "increase property values",
+            "reduce the heat island effect",
+            "lower noise levels only",
+            "increase rainfall"
+          ],
+          "a": 1,
+          "tip": "reduce the heat island effect 直接给出。"
+        },
+        {
+          "q": "What benefit do residents gain according to studies?",
+          "opts": [
+            "Lower rent",
+            "Improved mental well-being",
+            "Better air quality only",
+            "More jobs"
+          ],
+          "a": 1,
+          "tip": "linked access to green space with improved mental well-being。"
+        },
+        {
+          "q": "How do some city governments now view green space?",
+          "opts": [
+            "As decoration",
+            "As essential infrastructure",
+            "As a luxury",
+            "As a private matter"
+          ],
+          "a": 1,
+          "tip": "not as decoration, but as essential infrastructure 是对比强调结构。"
+        },
+        {
+          "q": "What two measures are mentioned?",
+          "opts": [
+            "Rooftop gardens and wetland restoration",
+            "New railways and housing",
+            "Higher taxes and subsidies",
+            "Farming and fishing"
+          ],
+          "a": 0,
+          "tip": "investing in rooftop gardens and restoring wetlands。"
+        }
+      ]
+    },
+    {
+      "id": "ls-2023-12-1",
+      "year": 2023,
+      "session": "12",
+      "no": 1,
+      "title": "Why Cities Are Planting Trees",
+      "level": "CET-6",
+      "type": "cet6",
+      "genre": "城市规划",
+      "words": [
+        "canopy",
+        "shade",
+        "air quality",
+        "stormwater",
+        "equity"
+      ],
+      "script": [
+        {
+          "s": 0,
+          "en": "Municipal tree planting programmes have expanded rapidly in the past decade."
+        },
+        {
+          "s": 1,
+          "en": "The stated goal is often to reduce carbon emissions, but the measurable effects are more immediate."
+        },
+        {
+          "s": 2,
+          "en": "A mature street canopy can lower summer temperatures by several degrees, reducing the demand for cooling."
+        },
+        {
+          "s": 3,
+          "en": "Leaves also trap particulate matter, and their roots absorb stormwater that would otherwise flood the streets."
+        },
+        {
+          "s": 4,
+          "en": "Yet distribution remains uneven. Wealthier districts receive more planting than poorer ones."
+        },
+        {
+          "s": 5,
+          "en": "Advocates argue that equity should be the starting point rather than an afterthought."
+        }
+      ],
+      "qs": [
+        {
+          "q": "What is the talk mainly about?",
+          "opts": [
+            "The carbon footprint of trees",
+            "Urban tree planting and its benefits",
+            "How cities measure temperature",
+            "Why planting programmes failed"
+          ],
+          "a": 1,
+          "tip": "首段给出主题，后段展开效益与公平问题。"
+        },
+        {
+          "q": "What can a mature canopy do, according to the talk?",
+          "opts": [
+            "Lower summer temperatures",
+            "Increase rainfall",
+            "Reduce building costs",
+            "Improve internet speed"
+          ],
+          "a": 0,
+          "tip": "lower summer temperatures by several degrees。"
+        },
+        {
+          "q": "What do leaves and roots do respectively?",
+          "opts": [
+            "Absorb heat / block rain",
+            "Trap particles / absorb stormwater",
+            "Produce oxygen / store carbon",
+            "Cool air / filter light"
+          ],
+          "a": 1,
+          "tip": "Leaves trap particulate matter, roots absorb stormwater。"
+        },
+        {
+          "q": "What problem does the speaker mention?",
+          "opts": [
+            "Trees are too expensive",
+            "Distribution is unfair between districts",
+            "Residents dislike trees",
+            "Planting harms transport"
+          ],
+          "a": 1,
+          "tip": "distribution remains uneven 是转折后的问题点。"
+        },
+        {
+          "q": "What do advocates emphasise?",
+          "opts": [
+            "Cost first",
+            "Equity as the starting point",
+            "Only carbon benefits",
+            "National standards"
+          ],
+          "a": 1,
+          "tip": "equity should be the starting point rather than an afterthought。"
+        }
+      ]
+    },
+    {
+      "id": "ls-2024-06-1",
+      "year": 2024,
+      "session": "06",
+      "no": 1,
+      "title": "The Problem with Speed",
+      "level": "CET-6",
+      "type": "cet6",
+      "genre": "科技伦理",
+      "words": [
+        "acceleration",
+        "judgment",
+        "automation",
+        "oversight",
+        "accountability"
+      ],
+      "script": [
+        {
+          "s": 0,
+          "en": "Modern technology has an undeniable capacity to make things faster."
+        },
+        {
+          "s": 1,
+          "en": "Speed, however, is not always a benefit. In some settings it degrades the very quality it is meant to improve."
+        },
+        {
+          "s": 2,
+          "en": "Consider medical diagnosis. A tool that returns a result in thirty seconds encourages clinicians to accept it without scrutiny."
+        },
+        {
+          "s": 3,
+          "en": "The problem is not the tool but the incentive structure surrounding it."
+        },
+        {
+          "s": 4,
+          "en": "Automation that removes human oversight removes accountability along with it."
+        },
+        {
+          "s": 5,
+          "en": "Governments are beginning to require that a named human remains answerable for any automated decision."
+        }
+      ],
+      "qs": [
+        {
+          "q": "What does the speaker suggest about speed?",
+          "opts": [
+            "It is always beneficial",
+            "It can reduce quality",
+            "It is mostly a marketing claim",
+            "It matters only in medicine"
+          ],
+          "a": 1,
+          "tip": "Speed, however, is not always a benefit 是核心论点。"
+        },
+        {
+          "q": "What does the medical example illustrate?",
+          "opts": [
+            "Hospitals are understaffed",
+            "Fast results encourage uncritical acceptance",
+            "Tools are expensive",
+            "Diagnosis is easy"
+          ],
+          "a": 1,
+          "tip": "encourages clinicians to accept it without scrutiny。"
+        },
+        {
+          "q": "Where does the speaker locate the problem?",
+          "opts": [
+            "In the tool itself",
+            "In the incentive structure",
+            "In patient demand",
+            "In government policy"
+          ],
+          "a": 1,
+          "tip": "not the tool but the incentive structure。"
+        },
+        {
+          "q": "What happens when human oversight is removed?",
+          "opts": [
+            "Accuracy improves",
+            "Accountability disappears",
+            "Costs fall",
+            "Jobs return"
+          ],
+          "a": 1,
+          "tip": "removes accountability along with it。"
+        },
+        {
+          "q": "What are governments beginning to require?",
+          "opts": [
+            "Faster tools",
+            "A named human answerable for automated decisions",
+            "Fewer doctors",
+            "More data sharing"
+          ],
+          "a": 1,
+          "tip": "require that a named human remains answerable。"
+        }
+      ]
+    }
+  ]
+}

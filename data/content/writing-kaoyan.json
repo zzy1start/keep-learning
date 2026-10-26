@@ -1,0 +1,217 @@
+{
+  "meta": {
+    "note": "考研英语写作仿真题，非真题原文。涵盖英语（一）小作文（应用文）与大作文（图表/图画/议论文）。",
+    "structure": "考研英语（一）：小作文 10分（应用文，约100词）；大作文 20分（图画/图表/议论文，约160-200词）。"
+  },
+  "tasks": [
+    {
+      "id": "ky-w1",
+      "year": 0,
+      "session": "english-1",
+      "no": 1,
+      "level": "考研",
+      "genre": "小作文·建议信",
+      "title": "Write a letter of suggestion to the university president.",
+      "cn": "假定你是李华，给学校校长写一封建议信，说明图书馆存在的问题并提出改进建议。注意：词数不少于100词；不要给出个人联系方式。",
+      "minWords": 100,
+      "expectScore": 10,
+      "limit": 15,
+      "outline": [
+        "写作目的：就图书馆现状提出改进建议（应用文）",
+        "第一段：说明写信目的——注意到图书馆近期使用率下降",
+        "第二段：具体问题——座位不足、噪音管理缺失、闭馆时间过短",
+        "第三段：提出建议——增加自习座位、设立静音区、延长开放时间",
+        "结尾：表达期待与礼貌"
+      ],
+      "keywords": [
+        "suggestion",
+        "concerned",
+        "recommend",
+        "appreciate"
+      ],
+      "model": "Dear Mr. President,\n\nI am writing to express my concern about the recent decline in the number of students using the library, and to offer a few suggestions that I believe might help.\n\nBased on my observations over the past month, the three issues that appear most often are as follows. To begin with, seats are clearly insufficient during examination periods, which forces many students to study in the corridors. In addition, the reading room on the second floor is rarely quiet, partly because there is no designated silent area. Finally, the library closes at nine in the evening, earlier than most students finish their work.\n\nIn light of these problems, I would like to suggest that the university consider adding reading rooms on the third floor, establishing a silent zone on each floor, and extending the closing time to eleven at night during examination seasons.\n\nThank you for your time and consideration.\n\nYours sincerely, Li Hua"
+    },
+    {
+      "id": "ky-w2",
+      "year": 0,
+      "session": "english-1",
+      "no": 2,
+      "level": "考研",
+      "genre": "大作文·图画",
+      "title": "Study the following cartoon and write an essay of 160-200 words.",
+      "cn": "审题说明：图画描述一位大学生在「知识」与「证书」之间来回奔走。请就图中现象写一篇议论文。词数不少于160词。",
+      "minWords": 170,
+      "expectScore": 20,
+      "limit": 40,
+      "outline": [
+        "第一段：描述图画内容——人物与标注",
+        "第二段：分析原因——证书焦虑的两大来源",
+        "第三段：论证影响——能力空心化",
+        "第四段：提出对策并升华主题"
+      ],
+      "keywords": [
+        "pursue",
+        "certificate",
+        "competence",
+        "hollow",
+        "valuable"
+      ],
+      "model": "As the cartoon shows, a young man is running back and forth between two towering structures labelled \"Certificates\" and \"Knowledge\", never stopping long enough to enter either. Sweaty and breathless, he appears convinced that collecting the latter is the only route to the former.\n\nThe anxiety behind this behaviour is not hard to understand. Competition for graduate admission has intensified, and most employers screen candidates by credential before they read a single line of their work. Faced with such incentives, certificates function as a low-risk signal: they are cheap to accumulate and immediately legible to others.\n\nYet the strategy is self-defeating. A certificate records that someone was present at a particular time; it cannot demonstrate judgement, endurance, or the ability to solve a problem that has not been seen before. Those qualities are acquired only through the slow, uncertain work of understanding, which is precisely what the man in the picture avoids. In the end he may hold many certificates and possess very little knowledge.\n\nA better equilibrium would recognise the two are partners rather than rivals. The practical step is modest: treat certificates as evidence of exposure, not as proof of mastery, and judge progress by what one can actually do rather than what one has been handed."
+    },
+    {
+      "id": "ky-w3",
+      "year": 0,
+      "session": "english-2",
+      "no": 1,
+      "level": "考研",
+      "genre": "大作文·图表",
+      "title": "The chart below shows the changes in the number of online learners in China from 2015 to 2024.",
+      "cn": "图表内容：2015年在线学习者约1200万，2018年约4800万，2021年约1.1亿，2024年约2.2亿。请写一篇图表作文，分析趋势并说明原因。词数不少于160词。",
+      "minWords": 170,
+      "expectScore": 20,
+      "limit": 40,
+      "outline": [
+        "第一段：描述图表总体趋势（上升、倍数关系）",
+        "第二段：分析原因（技术、疫情、政策）",
+        "第三段：预测趋势或讨论影响",
+        "第四段：总结"
+      ],
+      "keywords": [
+        "dramatic",
+        "accelerate",
+        "pandemic",
+        "penetration",
+        "attribute"
+      ],
+      "model": "The chart above reveals a striking upward trend in the number of online learners in China over the period from 2015 to 2024. The figure climbed from roughly 12 million to 220 million, an increase of more than eighteen times, and the growth accelerated notably after 2020.\n\nThree factors account for this pattern. To begin with, the spread of affordable smartphones and low-cost data plans made online courses accessible to users far beyond major cities, removing what had been a decisive barrier. In addition, the pandemic of 2020 forced schools and companies to move instruction online, converting millions of reluctant learners by necessity. Finally, government investment in digital infrastructure and the recognition of online credentials by employers reinforced one another: better connectivity brought more learners, and more learners justified further investment.\n\nIt would be premature, however, to interpret these figures as pure progress. Enrolment is not the same as completion, and reports of high drop-out rates suggest that access solved only half the problem. The next decade will therefore be decided less by how many people can reach a course than by whether the material keeps them engaged long enough to benefit from it.\n\nIn short, the trend is unlikely to reverse, but its meaning will depend on the quality of what lies behind the numbers."
+    },
+    {
+      "id": "ky-w4",
+      "year": 0,
+      "session": "english-2",
+      "no": 2,
+      "level": "考研",
+      "genre": "大作文·议论文",
+      "title": "Some people believe that artificial intelligence will replace most jobs in the coming decades, while others argue that it will create new ones instead.",
+      "cn": "就上述两种观点写一篇议论文，说明你的看法并给出理由。词数不少于160词。",
+      "minWords": 170,
+      "expectScore": 20,
+      "limit": 40,
+      "outline": [
+        "第一段：引出争议并表明立场（技术替代任务而非职业）",
+        "第二段：论证历史先例（技术革命史）",
+        "第三段：分析真正被替代的是什么（重复性任务）",
+        "第四段：结论与建议（教育与政策应对）"
+      ],
+      "keywords": [
+        "automation",
+        "displace",
+        "augment",
+        "reskill",
+        "inevitable"
+      ],
+      "model": "The question of whether artificial intelligence will destroy or create employment has been posed so often that it risks becoming rhetorical. Both camps make a defensible point, but they describe different time scales. In the short run the displacement argument largely wins; over decades the creation argument is harder to dismiss.\n\nHistory offers little comfort to either extreme. The mechanisation of agriculture eliminated the majority of agricultural employment within two generations, yet the total number of people employed did not fall, because new tasks absorbed the displaced workers. The important point is not that the economy is a self-correcting machine — it plainly is not, and the transitions were painful enough to require a century of social legislation — but that demand, once it exists reliably, tends to generate work nobody has yet imagined.\n\nWhat is genuinely threatened is narrower than it appears. Machines are excellent at repetitive, well-specified tasks with abundant training data. They are unreliable precisely where judgement is required: setting the goal, judging whether an outcome is acceptable, or taking responsibility for a decision. Those components are embedded in nearly every occupation, which is why automation has so far reshaped tasks rather than eliminated professions outright.\n\nThe constructive response is therefore neither to ban the technology nor to surrender to it. It is to ensure that the displaced can reach the newly created positions, which requires treating retraining as infrastructure rather than as a perk offered to those already secure."
+    },
+    {
+      "id": "ky-w5",
+      "year": 0,
+      "session": "english-2",
+      "no": 3,
+      "level": "考研",
+      "genre": "小作文·推荐信",
+      "title": "Write a letter of recommendation to the admissions office.",
+      "cn": "假定你是李华，曾指导过一位交换生。请向招生办写一封推荐信，说明该交换生的表现。词数不少于100词。",
+      "minWords": 100,
+      "expectScore": 10,
+      "limit": 15,
+      "outline": [
+        "写作目的：推荐一位学生（应用文）",
+        "第一段：说明写信目的与身份",
+        "第二段：具体表现——学术能力与课堂表现",
+        "第三段：品质与协作",
+        "结尾：强烈推荐"
+      ],
+      "keywords": [
+        "recommend",
+        "diligent",
+        "outstanding",
+        "sincerely"
+      ],
+      "model": "Dear Members of the Admissions Committee,\n\nI am writing to recommend Ms. Chen, who spent the previous semester as an exchange student in our department and whom I had the pleasure of supervising.\n\nAcademically, she performed at the top of her cohort. In my seminar on research methods she not only completed every assignment ahead of schedule but also raised questions that the rest of the class found genuinely useful; her final paper on rural electrification was the only one that addressed counter-arguments thoroughly.\n\nEqually notable was her manner of working. She arrived early, asked when she was stuck rather than struggling alone, and gave classmates credit for ideas that helped her own. That combination of competence and generosity did not go unnoticed.\n\nI recommend her without reservation and am glad to supply any further information should you require it.\n\nYours sincerely, Li Hua"
+    }
+  ],
+  "sentenceTasks": [
+    {
+      "en": "Not until the government took decisive action did the situation begin to improve.",
+      "cn": "直到政府采取果断行动，情况才开始好转。",
+      "hint": "倒装句（Not until 置于句首，主句部分倒装）。",
+      "id": "ky-tr-1",
+      "level": "考研",
+      "exam": "kaoyan",
+      "genre": "考研翻译仿真"
+    },
+    {
+      "en": "The findings are at odds with what most economists had assumed.",
+      "cn": "这些发现与多数经济学家的既有假设相左。",
+      "hint": "be at odds with = 与……不一致。",
+      "id": "ky-tr-2",
+      "level": "考研",
+      "exam": "kaoyan",
+      "genre": "考研翻译仿真"
+    },
+    {
+      "en": "It is not so much the cost that deters people as the uncertainty.",
+      "cn": "让人们犹豫的与其说是成本，不如说是不确定性。",
+      "hint": "not so much A as B 句型，译时保留「与其说…不如说」。",
+      "id": "ky-tr-3",
+      "level": "考研",
+      "exam": "kaoyan",
+      "genre": "考研翻译仿真"
+    },
+    {
+      "id": "ky-tr-4",
+      "level": "考研",
+      "exam": "kaoyan",
+      "genre": "考研翻译仿真",
+      "en": "What makes the issue difficult to resolve is not that the evidence is insufficient, but that the evidence most easily collected may not answer the question policymakers need to ask.",
+      "cn": "这个问题之所以难以解决，并非证据不足，而是最容易收集到的证据未必能回答决策者真正需要提出的问题。",
+      "hint": "What makes... is... 强调句型；not that... but that... 表示“不是……而是……”。"
+    },
+    {
+      "id": "ky-tr-6",
+      "level": "考研",
+      "exam": "kaoyan",
+      "genre": "考研翻译仿真",
+      "en": "Only when researchers distinguish between what a policy intends to achieve and what it actually changes can they judge whether it is worth extending.",
+      "cn": "只有研究者区分一项政策意在实现什么与它实际改变了什么，才能判断这项政策是否值得推广。",
+      "hint": "Only when 位于句首引起主句部分倒装；两个 what 引导名词性从句。"
+    },
+    {
+      "id": "ky-tr-8",
+      "level": "考研",
+      "exam": "kaoyan",
+      "genre": "考研翻译仿真",
+      "en": "The fact that a measure has produced measurable gains in one setting does not mean that it will have the same effect when the people expected to benefit from it face different constraints.",
+      "cn": "一项措施在某种情境下带来了可衡量的收益，并不意味着当预期受益者面临不同限制时，它也会产生同样的效果。",
+      "hint": "The fact that... 作主语；when 引导时间状语从句，注意 expected to benefit 为后置修饰语。"
+    },
+    {
+      "id": "ky-tr-10",
+      "level": "考研",
+      "exam": "kaoyan",
+      "genre": "考研翻译仿真",
+      "en": "Although technological innovation can lower the cost of information, the benefits are unevenly distributed unless people also have the skills and time needed to use it.",
+      "cn": "尽管技术创新能够降低获取信息的成本，但除非人们同时具备使用信息所需的技能和时间，否则这些收益并不会被均等分享。",
+      "hint": "Although 让步状语从句；unless 引导条件状语从句；needed to use it 修饰 skills and time。"
+    },
+    {
+      "id": "ky-tr-12",
+      "level": "考研",
+      "exam": "kaoyan",
+      "genre": "考研翻译仿真",
+      "en": "A policy designed to help people make better choices may achieve the opposite if it assumes that everyone has equal access to the information on which those choices depend.",
+      "cn": "一项旨在帮助人们作出更好选择的政策，如果假定每个人都能平等获取这些选择所依赖的信息，反而可能产生相反效果。",
+      "hint": "designed to... 作后置定语；if 引导条件状语从句；on which 引导定语从句。"
+    }
+  ]
+}

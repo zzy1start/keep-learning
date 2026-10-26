@@ -1,0 +1,447 @@
+{
+  "formatVersion": 1,
+  "recordedAt": "2026-10-17",
+  "note": "CET-4 选词填空/段落匹配/传统阅读 录制",
+  "meta": {
+    "type": "cet4",
+    "year": 2024,
+    "session": "06"
+  },
+  "paper": "Part III Reading Comprehension\nSection A\nDirections: ten blanks.\nQuestions 26 to 35 are based on the following passage.\nCloze body for blanks 26 to 35.\n26. Question 26.\nA) Option A26.\nB) Option B26.\nC) Option C26.\nD) Option D26.\n27. Question 27.\nA) Option A27.\nB) Option B27.\nC) Option C27.\nD) Option D27.\n28. Question 28.\nA) Option A28.\nB) Option B28.\nC) Option C28.\nD) Option D28.\n29. Question 29.\nA) Option A29.\nB) Option B29.\nC) Option C29.\nD) Option D29.\n30. Question 30.\nA) Option A30.\nB) Option B30.\nC) Option C30.\nD) Option D30.\n31. Question 31.\nA) Option A31.\nB) Option B31.\nC) Option C31.\nD) Option D31.\n32. Question 32.\nA) Option A32.\nB) Option B32.\nC) Option C32.\nD) Option D32.\n33. Question 33.\nA) Option A33.\nB) Option B33.\nC) Option C33.\nD) Option D33.\n34. Question 34.\nA) Option A34.\nB) Option B34.\nC) Option C34.\nD) Option D34.\n35. Question 35.\nA) Option A35.\nB) Option B35.\nC) Option C35.\nD) Option D35.\nSection B\nDirections: ten statements.\nQuestions 36 to 45 are based on the following passage.\nParagraph A text.\n36. Question 36.\nA) Option A36.\nB) Option B36.\nC) Option C36.\nD) Option D36.\n37. Question 37.\nA) Option A37.\nB) Option B37.\nC) Option C37.\nD) Option D37.\n38. Question 38.\nA) Option A38.\nB) Option B38.\nC) Option C38.\nD) Option D38.\n39. Question 39.\nA) Option A39.\nB) Option B39.\nC) Option C39.\nD) Option D39.\n40. Question 40.\nA) Option A40.\nB) Option B40.\nC) Option C40.\nD) Option D40.\n41. Question 41.\nA) Option A41.\nB) Option B41.\nC) Option C41.\nD) Option D41.\n42. Question 42.\nA) Option A42.\nB) Option B42.\nC) Option C42.\nD) Option D42.\n43. Question 43.\nA) Option A43.\nB) Option B43.\nC) Option C43.\nD) Option D43.\n44. Question 44.\nA) Option A44.\nB) Option B44.\nC) Option C44.\nD) Option D44.\n45. Question 45.\nA) Option A45.\nB) Option B45.\nC) Option C45.\nD) Option D45.\nSection C\nPassage One\nQuestions 46 to 48 are based on the following passage.\nReading body C.\n46. Question 46.\nA) Option A46.\nB) Option B46.\nC) Option C46.\nD) Option D46.\n47. Question 47.\nA) Option A47.\nB) Option B47.\nC) Option C47.\nD) Option D47.\n48. Question 48.\nA) Option A48.\nB) Option B48.\nC) Option C48.\nD) Option D48.\n",
+  "expected": {
+    "reading": [
+      26,
+      27,
+      28,
+      29,
+      30,
+      31,
+      32,
+      33,
+      34,
+      35,
+      36,
+      37,
+      38,
+      39,
+      40,
+      41,
+      42,
+      43,
+      44,
+      45,
+      46,
+      47,
+      48
+    ]
+  },
+  "recordings": [
+    {
+      "latencyMs": 2200,
+      "output": {
+        "module": "reading",
+        "complete": true,
+        "items": [
+          {
+            "readingType": "section-a",
+            "title": "Section A",
+            "genre": "选词填空",
+            "wordBank": [
+              {
+                "letter": "A",
+                "word": "word0"
+              },
+              {
+                "letter": "B",
+                "word": "word1"
+              },
+              {
+                "letter": "C",
+                "word": "word2"
+              },
+              {
+                "letter": "D",
+                "word": "word3"
+              },
+              {
+                "letter": "E",
+                "word": "word4"
+              },
+              {
+                "letter": "F",
+                "word": "word5"
+              },
+              {
+                "letter": "G",
+                "word": "word6"
+              },
+              {
+                "letter": "H",
+                "word": "word7"
+              },
+              {
+                "letter": "I",
+                "word": "word8"
+              },
+              {
+                "letter": "J",
+                "word": "word9"
+              }
+            ],
+            "clozeText": "Cloze ___26___ ___27___ ___28___ ___29___ ___30___ ___31___ ___32___ ___33___ ___34___ ___35___",
+            "questions": [
+              {
+                "number": 26,
+                "a": "A"
+              },
+              {
+                "number": 27,
+                "a": "A"
+              },
+              {
+                "number": 28,
+                "a": "A"
+              },
+              {
+                "number": 29,
+                "a": "A"
+              },
+              {
+                "number": 30,
+                "a": "A"
+              },
+              {
+                "number": 31,
+                "a": "A"
+              },
+              {
+                "number": 32,
+                "a": "A"
+              },
+              {
+                "number": 33,
+                "a": "A"
+              },
+              {
+                "number": 34,
+                "a": "A"
+              },
+              {
+                "number": 35,
+                "a": "A"
+              }
+            ]
+          },
+          {
+            "readingType": "section-b",
+            "title": "Section B",
+            "genre": "段落匹配",
+            "paragraphs": [
+              {
+                "label": "A",
+                "text": "Paragraph A"
+              },
+              {
+                "label": "B",
+                "text": "Paragraph B"
+              }
+            ],
+            "questions": [
+              {
+                "number": 36,
+                "statement": "Statement 36",
+                "a": "A"
+              },
+              {
+                "number": 37,
+                "statement": "Statement 37",
+                "a": "A"
+              },
+              {
+                "number": 38,
+                "statement": "Statement 38",
+                "a": "A"
+              },
+              {
+                "number": 39,
+                "statement": "Statement 39",
+                "a": "A"
+              },
+              {
+                "number": 40,
+                "statement": "Statement 40",
+                "a": "A"
+              },
+              {
+                "number": 41,
+                "statement": "Statement 41",
+                "a": "A"
+              },
+              {
+                "number": 42,
+                "statement": "Statement 42",
+                "a": "A"
+              },
+              {
+                "number": 43,
+                "statement": "Statement 43",
+                "a": "A"
+              },
+              {
+                "number": 44,
+                "statement": "Statement 44",
+                "a": "A"
+              },
+              {
+                "number": 45,
+                "statement": "Statement 45",
+                "a": "A"
+              }
+            ]
+          },
+          {
+            "readingType": "traditional",
+            "title": "Passage Recorded",
+            "genre": "reading",
+            "paragraphs": [
+              "recorded body"
+            ],
+            "questions": [
+              {
+                "number": 46,
+                "q": "Question 46.",
+                "opts": [
+                  "Option A46.",
+                  "Option B46.",
+                  "Option C46.",
+                  "Option D46."
+                ],
+                "a": null
+              },
+              {
+                "number": 47,
+                "q": "Question 47.",
+                "opts": [
+                  "Option A47.",
+                  "Option B47.",
+                  "Option C47.",
+                  "Option D47."
+                ],
+                "a": null
+              }
+            ]
+          }
+        ]
+      },
+      "retry": {
+        "latencyMs": 1700,
+        "output": {
+          "module": "reading",
+          "complete": true,
+          "items": [
+            {
+              "readingType": "section-a",
+              "title": "Section A",
+              "genre": "选词填空",
+              "wordBank": [
+                {
+                  "letter": "A",
+                  "word": "word0"
+                },
+                {
+                  "letter": "B",
+                  "word": "word1"
+                },
+                {
+                  "letter": "C",
+                  "word": "word2"
+                },
+                {
+                  "letter": "D",
+                  "word": "word3"
+                },
+                {
+                  "letter": "E",
+                  "word": "word4"
+                },
+                {
+                  "letter": "F",
+                  "word": "word5"
+                },
+                {
+                  "letter": "G",
+                  "word": "word6"
+                },
+                {
+                  "letter": "H",
+                  "word": "word7"
+                },
+                {
+                  "letter": "I",
+                  "word": "word8"
+                },
+                {
+                  "letter": "J",
+                  "word": "word9"
+                }
+              ],
+              "clozeText": "Cloze ___26___ ___27___ ___28___ ___29___ ___30___ ___31___ ___32___ ___33___ ___34___ ___35___",
+              "questions": [
+                {
+                  "number": 26,
+                  "a": "A"
+                },
+                {
+                  "number": 27,
+                  "a": "A"
+                },
+                {
+                  "number": 28,
+                  "a": "A"
+                },
+                {
+                  "number": 29,
+                  "a": "A"
+                },
+                {
+                  "number": 30,
+                  "a": "A"
+                },
+                {
+                  "number": 31,
+                  "a": "A"
+                },
+                {
+                  "number": 32,
+                  "a": "A"
+                },
+                {
+                  "number": 33,
+                  "a": "A"
+                },
+                {
+                  "number": 34,
+                  "a": "A"
+                },
+                {
+                  "number": 35,
+                  "a": "A"
+                }
+              ]
+            },
+            {
+              "readingType": "section-b",
+              "title": "Section B",
+              "genre": "段落匹配",
+              "paragraphs": [
+                {
+                  "label": "A",
+                  "text": "Paragraph A"
+                },
+                {
+                  "label": "B",
+                  "text": "Paragraph B"
+                }
+              ],
+              "questions": [
+                {
+                  "number": 36,
+                  "statement": "Statement 36",
+                  "a": "A"
+                },
+                {
+                  "number": 37,
+                  "statement": "Statement 37",
+                  "a": "A"
+                },
+                {
+                  "number": 38,
+                  "statement": "Statement 38",
+                  "a": "A"
+                },
+                {
+                  "number": 39,
+                  "statement": "Statement 39",
+                  "a": "A"
+                },
+                {
+                  "number": 40,
+                  "statement": "Statement 40",
+                  "a": "A"
+                },
+                {
+                  "number": 41,
+                  "statement": "Statement 41",
+                  "a": "A"
+                },
+                {
+                  "number": 42,
+                  "statement": "Statement 42",
+                  "a": "A"
+                },
+                {
+                  "number": 43,
+                  "statement": "Statement 43",
+                  "a": "A"
+                },
+                {
+                  "number": 44,
+                  "statement": "Statement 44",
+                  "a": "A"
+                },
+                {
+                  "number": 45,
+                  "statement": "Statement 45",
+                  "a": "A"
+                }
+              ]
+            },
+            {
+              "readingType": "traditional",
+              "title": "Passage Recorded",
+              "genre": "reading",
+              "paragraphs": [
+                "recorded body"
+              ],
+              "questions": [
+                {
+                  "number": 46,
+                  "q": "Question 46.",
+                  "opts": [
+                    "Option A46.",
+                    "Option B46.",
+                    "Option C46.",
+                    "Option D46."
+                  ],
+                  "a": null
+                },
+                {
+                  "number": 47,
+                  "q": "Question 47.",
+                  "opts": [
+                    "Option A47.",
+                    "Option B47.",
+                    "Option C47.",
+                    "Option D47."
+                  ],
+                  "a": null
+                },
+                {
+                  "number": 48,
+                  "q": "Question 48.",
+                  "opts": [
+                    "Option A48.",
+                    "Option B48.",
+                    "Option C48.",
+                    "Option D48."
+                  ],
+                  "a": null
+                }
+              ]
+            }
+          ]
+        }
+      }
+    }
+  ]
+}

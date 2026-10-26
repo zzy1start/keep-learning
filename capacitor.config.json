@@ -1,0 +1,16 @@
+{
+  "appId": "com.keeplrn.tablet",
+  "appName": "Keep Learning",
+  "webDir": "dist-android",
+  "server": {
+    "androidScheme": "https"
+  },
+  "android": {
+    "allowMixedContent": false
+  },
+  "plugins": {
+    "CapacitorHttp": {
+      "enabled": true
+    }
+  }
+}

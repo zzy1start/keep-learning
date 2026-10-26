@@ -1,0 +1,225 @@
+Keep Learning · 第三方组件与数据来源声明
+=========================================
+
+本项目（Keep Learning）自身代码采用 MIT License，见 LICENSE 文件；内置词库等第三方数据另有许可，见下文。
+
+本文件列出项目所包含的第三方组件、第三方数据来源及其许可条款。
+分发本项目或其衍生作品时，请一并保留本文件及下列各许可文本。
+
+
+────────────────────────────────────────────────────────────────────────
+一、词条数据（音标 / 中文释义 / 词频 / 考试标签 / 词形变化）
+────────────────────────────────────────────────────────────────────────
+
+ECDICT — Free English to Chinese Dictionary Database
+  来源：https://github.com/skywind3000/ECDICT
+  许可：MIT License
+  版权：Copyright (c) 2025 Linwei
+  用途：早期词库参考来源；当前构建脚本 tools/build-dict.js / build-forms.js
+        读取的是 zhenghaoyang24/english-vocabulary 数据，不再读取 ECDICT。
+  说明：MIT 许可明确允许 use / copy / modify / merge / publish / distribute /
+        sublicense / sell。保留此声明以尊重早期来源。
+
+  MIT License
+  Copyright (c) 2025 Linwei
+
+  Permission is hereby granted, free of charge, to any person obtaining a copy
+  of this software and associated documentation files (the "Software"), to deal
+  in the Software without restriction, including without limitation the rights
+  to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+  copies of the Software, and to permit persons to whom the Software is
+  furnished to do so, subject to the following conditions:
+
+  The above copyright notice and this permission notice shall be included in all
+  copies or substantial portions of the Software.
+
+  THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+  IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+  FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+  AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+  LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+  OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+  SOFTWARE.
+
+zhenghaoyang24/english-vocabulary（词条 / 例句 / 词书分组）
+  来源：https://github.com/zhenghaoyang24/english-vocabulary
+  版权：Copyright (c) zhenghaoyang24（作者署名：zhenghaoyang）
+  许可：CC BY 4.0（https://creativecommons.org/licenses/by/4.0/）
+  授权：作者于 2026-10-25 通过邮件明确同意“数据按 CC BY 4.0 授权”
+  用途：tb_vocabulary.json（音标/中文释义/词频）、tb_voc_examples.json（双语例句）、
+        tb_book.json / tb_voc_book.json（词书分组），构建为 App 内置离线词库
+  修改说明：本项目对原始数据做了合并、去重、筛选、字段映射与 JSON 格式转换，
+            这些修改按 CC BY 4.0 的要求标注
+  授权证据：docs/outreach/2026-10-25-zhenghaoyang24-reply-CC-BY-4.0.jpg
+  许可全文：LICENSES/CC-BY-4.0.txt
+
+KyleBing/english-vocabulary（CET4/6、SAT 固定搭配）
+  来源：https://github.com/KyleBing/english-vocabulary
+        （本项目经 fork https://github.com/zahi-ko/english-vocabulary 取得同一份数据）
+  版权：Copyright (c) 2022-2026, KyleBing
+  许可：BSD 3-Clause License
+  用途：cet4_full.json / cet6_full.json / sat_full.json 中的固定搭配，构建进词书数据
+  许可全文：LICENSES/BSD-3-Clause-KyleBing.txt
+
+
+────────────────────────────────────────────────────────────────────────
+二、语音合成
+────────────────────────────────────────────────────────────────────────
+
+Piper TTS（语音合成引擎与模型）
+  来源：https://github.com/rhasspy/piper
+  许可：MIT License
+  版权：Copyright (c) 2022 Michael Hansen
+  用途：设备端离线语音合成
+  说明：许可全文见
+        https://github.com/rhasspy/piper/blob/master/LICENSE.md
+
+  MIT License
+
+  Copyright (c) 2022 Michael Hansen
+
+  Permission is hereby granted, free of charge, to any person obtaining a copy
+  of this software and associated documentation files (the "Software"), to deal
+  in the Software without restriction, including without limitation the rights
+  to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+  copies of the Software, and to permit persons to whom the Software is
+  furnished to do so, subject to the following conditions:
+
+  The above copyright notice and this permission notice shall be included in all
+  copies or substantial portions of the Software.
+
+  THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+  IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+  FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+  AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+  LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+  OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+  SOFTWARE.
+
+sherpa-onnx（本地 TTS 运行时，Android）
+  来源：https://github.com/k2-fsa/sherpa-onnx
+  许可：Apache License 2.0
+  用途：Android 端离线语音合成的原生运行时（native/android/app/libs/sherpa-onnx.aar）
+
+  各语音模型（alan / amy / jenny / ryan）本身的许可以其 MODEL_CARD 为准，
+  均为 MIT 或其上游语料库许可（如 LibriTTS / VCTK 的 CC-BY / CC0），
+  详见 https://github.com/rhasspy/piper
+
+ONNX Runtime（推理引擎，随 sherpa-onnx.aar 一并分发）
+  来源：https://github.com/microsoft/onnxruntime
+  许可：MIT License
+  版权：Copyright (c) Microsoft Corporation
+  用途：sherpa-onnx 的推理后端，APK 内以 lib/arm64-v8a/libonnxruntime.so 形式存在
+
+  MIT License
+  Copyright (c) Microsoft Corporation
+
+  Permission is hereby granted, free of charge, to any person obtaining a copy
+  of this software and associated documentation files (the "Software"), to deal
+  in the Software without restriction, including without limitation the rights
+  to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+  copies of the Software, and to permit persons to whom the Software is
+  furnished to do so, subject to the following conditions:
+
+  The above copyright notice and this permission notice shall be included in all
+  copies or substantial portions of the Software.
+
+  THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+  IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+  FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+  AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+  LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+  OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+  SOFTWARE.
+
+
+────────────────────────────────────────────────────────────────────────
+三、浏览器端第三方库（vendor/ 目录，各自保留原始 LICENSE 文件）
+────────────────────────────────────────────────────────────────────────
+
+pdf.js（PDF 解析）
+  版本：见 vendor/pdfjs/README.md
+  许可：Apache License 2.0
+  版权：Mozilla Foundation
+  许可全文：vendor/pdfjs/LICENSE
+  注意：Apache-2.0 要求保留原 LICENSE 文件、标注修改、并附带 NOTICE。
+
+pdf-lib（PDF 生成）
+  来源：https://github.com/Hopding/pdf-lib
+  许可：Apache License 2.0
+  版权：Copyright (c) Microsoft Corporation
+  说明：本项目使用其 UMD 浏览器构建产物 vendor/pdf-lib.min.js，
+        文件头部已包含 Apache-2.0 许可声明。
+
+sbd（英文断句）
+  来源：https://github.com/Tessmore/sbd
+  固定 commit：6eb72541591136da12e134872dce46ad9c8e76e8（2022-12-13）
+  许可：MIT License
+  版权：Copyright (c) 2012 Fabiën Tesselaar
+  许可全文：vendor/sbd/LICENSE
+  集成说明：vendor/sbd/VENDOR.md
+
+sacrebleu（BLEU 评分参考实现）
+  来源：https://github.com/mjpost/sacrebleu
+  许可：Apache License 2.0
+  许可全文：vendor/sacrebleu/LICENSE.txt
+  用途：翻译质量评分的参考对照实现
+
+
+────────────────────────────────────────────────────────────────────────
+四、字体
+────────────────────────────────────────────────────────────────────────
+
+Noto Sans（界面正文字体）
+  文件：assets/fonts/NotoSans-Regular.ttf
+  版本：Noto Sans Regular 2.015（GOOG 构建，ttfautohint 1.8.4.7）
+  来源：https://github.com/notofonts/latin-greek-cyrillic
+  许可：SIL Open Font License, Version 1.1 (OFL-1.1)
+  版权：Copyright 2022 The Noto Project Authors
+        (https://github.com/notofonts/latin-greek-cyrillic)
+  用途：应用界面正文的西文字体渲染
+  说明：
+    - 上述版权、版本与许可信息取自字体文件内嵌的 name 表，可由用户直接核验。
+    - OFL-1.1 允许自由使用、修改、再分发与嵌入到软件中，
+      包括商业用途；要求随分发保留版权声明与许可全文。
+    - OFL-1.1 不允许**单独售卖字体本身**。本项目仅将字体作为软件资源随应用分发，
+      未将字体文件单独授权或出售。
+    - 该字体未被修改（未做字形重塑、字距调整或子集化之外的改动）。
+
+  SIL OPEN FONT LICENSE Version 1.1 - 26 February 2007
+  全文见：https://github.com/notofonts/latin-greek-cyrillic/blob/main/OFL.txt
+
+
+────────────────────────────────────────────────────────────────────────
+五、内置题库
+────────────────────────────────────────────────────────────────────────
+
+data/content/ 下的听力 / 阅读 / 写作题目
+  版权：本项目作者
+  说明：均为按真题题型、难度与篇章结构**自编的仿真题**，非真题原文，
+        以避免真题的版权问题与题目归属错误。
+        真实真题请使用各模块的「导入真题」功能，由用户自行导入其合法持有的文件。
+
+
+────────────────────────────────────────────────────────────────────────
+六、用户数据
+────────────────────────────────────────────────────────────────────────
+
+本项目不收集、不上传任何用户数据。
+学习进度、设置与 AI API 配置仅保存在用户本机（浏览器 localStorage 或应用沙箱），
+AI 请求由用户设备直接发送至用户自行填写的第三方 API 服务地址，本项目不充当中间人。
+
+
+────────────────────────────────────────────────────────────────────────
+七、构建期依赖
+────────────────────────────────────────────────────────────────────────
+
+Capacitor 生态（@capacitor/core、@capacitor/android、@capacitor/cli、
+@capacitor/filesystem、@capacitor/share）
+  许可：MIT License
+  版权：https://github.com/ionic-team/capacitor/ 及其贡献者
+  版本：由 pnpm-lock.yaml 锁定
+
+Gradle / Android Gradle Plugin
+  许可：Apache License 2.0
+  版权：The Android Open Source Project

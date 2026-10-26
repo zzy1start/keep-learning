@@ -1,0 +1,268 @@
+{
+  "meta": {
+    "note": "仿真题，非真题原文。按真题「年份/场次/篇章」结构组织。",
+    "structure": "四级/六级阅读：一卷4篇（选词填空/长篇阅读/仔细阅读）。"
+  },
+  "passages": [
+    {
+      "id": "rd-2023-06-1",
+      "year": 2023,
+      "session": "06",
+      "no": 1,
+      "title": "Interdisciplinary Education",
+      "level": "CET-6",
+      "genre": "教育话题",
+      "timeLimit": 15,
+      "totalScore": 15,
+      "paragraphs": [
+        "In recent years, many universities have placed increasing emphasis on interdisciplinary education, recognizing that complex global challenges cannot be solved within the boundaries of a single discipline. By integrating knowledge from different fields, students are encouraged to develop broader perspectives and more flexible problem-solving skills, which are essential in today's rapidly changing world.",
+        "However, this approach also faces a number of challenges, including curriculum design, resource allocation, and the need for teachers to adapt to new teaching methods. Despite these difficulties, interdisciplinary education is widely regarded as a promising direction for higher education reform.",
+        "The rationale behind this shift is not merely pedagogical. Employers in rapidly evolving industries increasingly report that graduates need to integrate knowledge from several domains to solve problems that no single discipline was designed to address. A engineer who cannot reason about statistics, or a policy analyst who cannot read a data table, is steadily becoming less useful in practice even if their training was thorough.",
+        "Proponents also point to evidence from project-based courses. When students from engineering, business, and design work together on a single problem, they discover that the hardest part is rarely the technical content itself; it is the failure to communicate across disciplinary boundaries. Such experiences, advocates argue, produce graduates who are more flexible and more willing to learn on the job.",
+        "Skeptics, however, raise three objections. The first is practical: designing a genuinely interdisciplinary course requires cooperation among departments that historically compete for the same resources and academic credit. The second is evaluative: when a program draws on six different departments, it becomes difficult to know who is responsible when a student fails to master the material. The third concerns the labor market. A graduate with broad exposure may look attractive at first glance, but an employer seeking a specialist may reasonably wonder whether breadth has come at the expense of depth.",
+        "None of these objections is decisive, but they do suggest that the model is not a universal solution. Institutions that adopt it most successfully tend to do so gradually, beginning with a handful of elective modules rather than restructuring an entire curriculum overnight. They also tend to require a common core of disciplinary training before allowing students to specialize, on the reasonable assumption that genuine cross-fertilization is impossible without depth to begin with.",
+        "The larger question is whether universities are preparing students for a world in which knowledge itself is becoming more fluid. If the problems of the future cannot be assigned neatly to departments, then the departments that divide them may become an obstacle rather than an aid. Interdisciplinary education, for all its difficulties, at least acknowledges that possibility."
+      ],
+      "questions": [
+        {
+          "q": "According to the passage, what is a main advantage of interdisciplinary education?",
+          "opts": [
+            "It reduces the workload of teachers.",
+            "It helps students develop broader perspectives.",
+            "It focuses only on scientific research.",
+            "It eliminates the need for traditional disciplines."
+          ],
+          "a": 1,
+          "explain": "原文 \"students are encouraged to develop broader perspectives and more flexible problem-solving skills\"，A/D 与原文相反，C 无中生有。",
+          "evidence": "第二段前两句：By integrating knowledge from different fields, students are encouraged to develop broader perspectives..."
+        },
+        {
+          "q": "Which of the following is mentioned as a challenge?",
+          "opts": [
+            "The lack of student interest.",
+            "The need for curriculum design.",
+            "The decrease in university funding.",
+            "The shortage of foreign teachers."
+          ],
+          "a": 1,
+          "explain": "原文列举 including curriculum design, resource allocation, and the need for teachers to adapt...，B 对应 curriculum design。",
+          "evidence": "第二段：including curriculum design, resource allocation, and the need for teachers to adapt to new teaching methods"
+        },
+        {
+          "q": "What is the author's attitude toward interdisciplinary education?",
+          "opts": [
+            "Strongly opposed.",
+            "Cautiously optimistic.",
+            "Completely indifferent.",
+            "Highly suspicious."
+          ],
+          "a": 1,
+          "explain": "用 However/Despite 让步后仍说 widely regarded as a promising direction，属\"谨慎乐观\"。",
+          "evidence": "Despite these difficulties, interdisciplinary education is widely regarded as a promising direction"
+        }
+      ],
+      "wordCount": 441
+    },
+    {
+      "id": "rd-2023-06-2",
+      "year": 2023,
+      "session": "06",
+      "no": 2,
+      "title": "The Rise of Remote Work",
+      "level": "CET-6",
+      "genre": "社会趋势",
+      "timeLimit": 15,
+      "totalScore": 15,
+      "paragraphs": [
+        "Remote work, once a temporary measure adopted during a global emergency, has become a permanent feature of the modern labour market. For many employees, the appeal is straightforward: no commute, greater flexibility over working hours, and the freedom to live far from expensive city centres.",
+        "Employers, however, have adopted a more cautious stance. Studies conducted over the past three years suggest that fully remote teams often struggle with communication, mentorship of junior staff, and the preservation of informal team culture. A growing number of companies have therefore adopted hybrid arrangements, requiring staff to attend the office on a small number of fixed days.",
+        "What remains unclear is whether hybrid working will prove durable. Some analysts predict that the arrangement will settle into a stable pattern within five years. Others argue that the pendulum will swing fully back towards the office as younger, more socially oriented workers enter the workforce.",
+        "The early evidence suggests that the shift is genuine rather than temporary. Surveys conducted across several countries show that a substantial share of knowledge workers now spend at least some of their working week away from an office, and the proportion has remained stable even after offices reopened in many major cities. What has changed is the expectation: remote work is no longer a concession granted to a few employees, but a standard arrangement negotiated alongside salary and responsibilities.",
+        "Employers have been quick to point out the advantages. Without the daily commute, employees recover time that had previously been lost to travel, and surveys suggest that many now spend part of that time on exercise, family, or rest. Recruitment has widened as well: firms that do not require presence can hire from a much larger labour market, and many have found that a broader pool outweighs the benefits of a physical office in cities where offices are expensive.",
+        "The difficulties, however, are real and well documented. Junior employees appear to suffer most: they learn by overhearing colleagues, by receiving informal corrections, and by understanding unwritten rules that nobody thinks to write down. Several studies of call centres and software teams have found that new workers struggled for months before reaching normal productivity, and that remote arrangements extended this period substantially. For organisations whose competitive advantage rests on transferring tacit knowledge quickly, that is a serious cost.",
+        "A second concern is the erosion of professional identity. Informal conversation at work is not merely social; it is how norms get formed and how new ideas are generated. One developer described the surprise of moving to a fully remote team: the code reviews were excellent, but nobody had mentioned that the organisation had quietly changed its approach to testing two years earlier. Such absences are hard to measure and easy to overlook.",
+        "The most plausible resolution emerging from practice is neither total remote nor total office but a deliberate hybrid. Companies that have settled on one or two anchor days a week report that they retain the benefits of flexibility while preserving the informal exchange that remote work tends to erode. It is an imperfect arrangement, and it will not suit every industry, but it reflects an emerging recognition that the question is not where people work but how deliberately an organisation manages the way they learn from one another."
+      ],
+      "questions": [
+        {
+          "q": "What is the main attraction of remote work for employees?",
+          "opts": [
+            "Higher salaries.",
+            "Flexibility and no commute.",
+            "Better promotion opportunities.",
+            "Better health insurance."
+          ],
+          "a": 1,
+          "explain": "原文冒号后列举 no commute, greater flexibility over working hours，B 为同义概括。",
+          "evidence": "the appeal is straightforward: no commute, greater flexibility over working hours"
+        },
+        {
+          "q": "According to the passage, what difficulty do fully remote teams face?",
+          "opts": [
+            "Higher costs.",
+            "Communication and mentoring problems.",
+            "Legal restrictions.",
+            "Lack of qualified applicants."
+          ],
+          "a": 1,
+          "explain": "原文 struggle with communication, mentorship of junior staff...，B 概括正确。",
+          "evidence": "fully remote teams often struggle with communication, mentorship of junior staff"
+        },
+        {
+          "q": "What do many companies now require?",
+          "opts": [
+            "Full-time office attendance.",
+            "Working from any country.",
+            "A small number of fixed office days.",
+            "No fixed schedule at all."
+          ],
+          "a": 2,
+          "explain": "hybrid arrangements, requiring staff to attend the office on a small number of fixed days。",
+          "evidence": "hybrid arrangements, requiring staff to attend the office on a small number of fixed days"
+        },
+        {
+          "q": "What does the last paragraph mainly discuss?",
+          "opts": [
+            "The history of remote work.",
+            "Competing predictions about the future.",
+            "How to reduce office costs.",
+            "A survey of employee preferences."
+          ],
+          "a": 1,
+          "explain": "末段用 Some analysts predict... Others argue... 呈现两种对立预测。",
+          "evidence": "Some analysts predict... Others argue that the pendulum will swing fully back"
+        }
+      ],
+      "wordCount": 546
+    },
+    {
+      "id": "rd-2023-12-1",
+      "year": 2023,
+      "session": "12",
+      "no": 1,
+      "title": "The Changing Role of Public Libraries",
+      "level": "CET-6",
+      "genre": "社会趋势",
+      "timeLimit": 15,
+      "totalScore": 15,
+      "paragraphs": [
+        "For most of the twentieth century, the public library was regarded primarily as a place to borrow books. That role has expanded considerably. Today, many libraries in large cities function as community centres, offering study space, internet access, job-search support and language classes.",
+        "This shift has not gone unchallenged. Critics argue that providing social services diverts funding from the core purpose of libraries, which is to provide access to knowledge. Supporters counter that a library that people no longer visit is unlikely to sustain its funding base in the long term.",
+        "The most striking evidence is the diversity of what these spaces now contain. Alongside the shelves sit recording studios, legal advice clinics, language classes, and rooms equipped for children who are read to while their parents attend job interviews. Several libraries in smaller towns have become the only public building in the community with reliable internet access, and staff report that visitors frequently arrive with tasks that have nothing to do with books at all.",
+        "This expansion has not been entirely uncontested. Critics argue that libraries are being asked to compensate for the withdrawal of other public services, and that by taking on social work, health advice, and digital training, they risk diluting the scholarly function that justified their existence in the first place. The accusation carries some weight: a library that becomes everything to everyone risks becoming nothing in particular.",
+        "Defenders reply that the distinction is false. A branch that helps someone fill in an online job application is performing the same underlying function as a branch that helps a student find a reference: it mediates between a person with a need and a body of organised knowledge. The nineteenth-century public library was founded on a similar premise, treating access to books as a form of social inclusion rather than merely an educational convenience.",
+        "The change in usage patterns is also more substantial than the numbers suggest. Circulation of printed books has fallen in most systems, but the decline has been offset by growth in other measures, including visits to digital resources, attendance at programmes, and the number of people using library buildings for extended periods. Whether this counts as success depends on what one believes a library is for, and that question is now being asked with an urgency it did not attract a generation ago."
+      ],
+      "questions": [
+        {
+          "q": "What is the main change described in the passage?",
+          "opts": [
+            "Libraries have become more community-oriented.",
+            "Libraries have stopped lending books.",
+            "Libraries have reduced their opening hours.",
+            "Libraries have become more expensive."
+          ],
+          "a": 0,
+          "explain": "第一段 says the role expanded... function as community centres，属概括。",
+          "evidence": "many libraries in large cities function as community centres"
+        },
+        {
+          "q": "What do critics worry about?",
+          "opts": [
+            "A decline in book lending.",
+            "Funding being diverted from the core purpose.",
+            "A lack of internet access.",
+            "Too many community activities."
+          ],
+          "a": 1,
+          "explain": "critics argue that providing social services diverts funding...",
+          "evidence": "diverts funding from the core purpose of libraries"
+        },
+        {
+          "q": "How do supporters respond?",
+          "opts": [
+            "They argue libraries should close.",
+            "They say an unused library will lose funding.",
+            "They admit funding is limited.",
+            "They propose raising book prices."
+          ],
+          "a": 1,
+          "explain": "a library that people no longer visit is unlikely to sustain its funding base。",
+          "evidence": "is unlikely to sustain its funding base in the long term"
+        }
+      ],
+      "wordCount": 389
+    },
+    {
+      "id": "rd-2024-06-1",
+      "year": 2024,
+      "session": "06",
+      "no": 1,
+      "title": "Why Sleep Matters for Memory",
+      "level": "CET-6",
+      "genre": "健康科普",
+      "timeLimit": 15,
+      "totalScore": 15,
+      "paragraphs": [
+        "Most people treat sleep as the one part of the day that can be shortened with the least consequence. Evidence accumulated over the past twenty years suggests the opposite.",
+        "During deep sleep, the brain replays the electrical patterns recorded during waking hours. This process, known as consolidation, gradually transfers fragile memories into more permanent storage.",
+        "Cutting sleep to six hours instead of eight reduced the recall of newly learned vocabulary by roughly forty per cent in controlled trials. The effect was strongest when the sleep loss occurred immediately after learning, suggesting that missed consolidation cannot simply be recovered later.",
+        "The consequences extend well beyond feeling tired. In the decade since the first studies were published, sleep has been linked to a strikingly wide range of conditions, including cardiovascular disease, impaired glucose regulation, and reduced resistance to infection. Laboratory volunteers restricted to six hours a night for a week showed measurable deterioration in glucose handling, a change associated with an increased risk of diabetes. The association is not a matter of speculation, and it is not restricted to laboratory settings.",
+        "Memory is affected at two distinct points. During the day, the hippocampus plays a central role in consolidating new material, and this process appears to depend on the slow-wave activity that characterises deep sleep. Those who are deprived of deep sleep in the laboratory perform measurably worse on the following day's recall, even after an additional night of rest. At night, the glymphatic system becomes active, clearing metabolic waste from the brain in a way that resembles a miniature irrigation system, and this clearance seems to require sleep rather than simply occur alongside it.",
+        "The social dimension is nearly as consequential. People who sleep less are measurably more likely to misjudge risk, to overestimate the probability of rare events, and to make decisions that later prove difficult to defend. These are the same capacities that the modern workplace and the road both depend upon. Several countries have responded by restricting the hours of commercial drivers, and the early results have been encouraging, with accident rates falling noticeably in the affected categories.",
+        "What makes this a genuine public health issue rather than a private matter of individual discipline is the arithmetic of modern life. A workplace that expects replies at midnight, a commute that consumes two hours each way, and a school day starting before seven in the morning do not leave an individual many workable options. The advice that sleep hygiene matters is certainly true, but it is difficult to apply to a schedule designed by other people. Addressing the problem seriously would require the same kind of collective response that produced seat belts and smoke-free legislation, and so far that response has not yet appeared."
+      ],
+      "questions": [
+        {
+          "q": "What is the passage mainly about?",
+          "opts": [
+            "How to improve concentration at work",
+            "The relationship between sleep and memory",
+            "Why students dislike early classes",
+            "The history of sleep research"
+          ],
+          "a": 1,
+          "explain": "首段提出普遍看法，末段给出研究数据，主题为睡眠与记忆的关系。",
+          "evidence": "Cutting sleep to six hours... reduced the recall of newly learned vocabulary"
+        },
+        {
+          "q": "What happens during deep sleep according to the passage?",
+          "opts": [
+            "The brain stops recording patterns",
+            "The brain replays patterns learned while awake",
+            "Memory is permanently erased",
+            "New vocabulary is learned"
+          ],
+          "a": 1,
+          "explain": "the brain replays the electrical patterns recorded during waking hours。",
+          "evidence": "the brain replays the electrical patterns recorded during waking hours"
+        },
+        {
+          "q": "What was the effect of sleeping six hours instead of eight?",
+          "opts": [
+            "Recall dropped by about forty per cent",
+            "No measurable change",
+            "Learning improved slightly",
+            "Memory doubled"
+          ],
+          "a": 0,
+          "explain": "reduced the recall of newly learned vocabulary by roughly forty per cent。",
+          "evidence": "reduced the recall of newly learned vocabulary by roughly forty per cent"
+        },
+        {
+          "q": "What does \"consolidation\" refer to?",
+          "opts": [
+            "Falling asleep quickly",
+            "Transferring fragile memories to permanent storage",
+            "Recovering lost sleep later",
+            "Studying before bed"
+          ],
+          "a": 1,
+          "explain": "This process, known as consolidation, gradually transfers fragile memories into more permanent storage。",
+          "evidence": "gradually transfers fragile memories into more permanent storage"
+        }
+      ],
+      "wordCount": 455
+    }
+  ]
+}

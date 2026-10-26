@@ -1,0 +1,21 @@
+{
+ "identical-en": 100.0,
+ "identical-zh": 100.0,
+ "unrelated-en": 7.872978559559033,
+ "partial-en": 69.13862146890712,
+ "partial-zh": 40.317460317460316,
+ "punctuation-en": 56.34300935055761,
+ "repeat-en": 89.84375,
+ "whitespace-run": 100.0,
+ "fullwidth-space-zh": 100.0,
+ "empty-hyp": 0.0,
+ "empty-ref": 0.0,
+ "mixed-lang": 87.59697141294565,
+ "long-en": 0.0,
+ "chrfpp-en": 85.56596376771287,
+ "chrfpp-punct": 54.37807710970915,
+ "lowercase-on": 100.0,
+ "whitespace-on": 29.411764705882348,
+ "beta-1": 67.38260078902864,
+ "short-zh": 100.0
+}

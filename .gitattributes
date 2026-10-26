@@ -1,0 +1,32 @@
+# 统一行尾，避免"文件明明没改却显示 M"的情况
+# Windows 上开发统一用 CRLF，跨平台协作时 git 自动转换
+* text=auto
+
+*.js   text
+*.json text
+*.md   text
+*.css  text
+*.html text
+*.bat  text eol=crlf
+*.cjs  text
+
+# 二进制资源不做行尾转换
+*.png  binary
+*.jpg  binary
+*.ico  binary
+*.pdf  binary
+*.bcmap binary
+*.pfb  binary
+*.ttf  binary
+*.woff2 binary
+*.pdfjs binary
+*.mjs  text
+
+# 原生库与签名材料：必须显式声明 binary。
+# 依赖 * text=auto 的自动检测也能正确识别，但一旦在某些平台/配置下
+# 被误判为文本而做行尾转换，aar（zip 容器）会被破坏且难以察觉。
+*.aar  binary
+*.jar  binary
+*.jks  binary
+*.keystore binary
+*.so   binary

@@ -1,0 +1,36 @@
+{
+  "name": "keep-learning-tablet",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Keep Learning — offline English study workspace (Capacitor)",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/zzy1start/keep-learning.git"
+  },
+  "homepage": "https://github.com/zzy1start/keep-learning",
+  "bugs": {
+    "url": "https://github.com/zzy1start/keep-learning/issues"
+  },
+  "engines": {
+    "node": ">=20"
+  },
+  "scripts": {
+    "build:web": "node tools/build-android.cjs",
+    "build:web:lite": "node tools/build-android.cjs --no-audio",
+    "audio:gen": "node tools/gen-audio-pack.cjs",
+    "audio:check": "node tools/gen-audio-pack.cjs --check",
+    "cap:sync": "cap sync android",
+    "android:debug": "cd android && gradlew.bat assembleDebug"
+  },
+  "dependencies": {
+    "@capacitor/core": "^7.4.0",
+    "@capacitor/filesystem": "^7.1.9",
+    "@capacitor/share": "^7.0.4",
+    "pdf-lib": "^1.17.1"
+  },
+  "devDependencies": {
+    "@capacitor/android": "^7.4.0",
+    "@capacitor/cli": "^7.4.0"
+  }
+}

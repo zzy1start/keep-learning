@@ -1,0 +1,8 @@
+blank_issues_enabled: false
+contact_links:
+  - name: 使用说明 / README
+    url: https://github.com/zzy1start/keep-learning/blob/main/README.md
+    about: 先看功能说明、常见问题与构建方式
+  - name: 安全问题（私密）
+    url: https://github.com/zzy1start/keep-learning/security/advisories/new
+    about: 请勿在公开 Issue 里报告漏洞；使用私密报告

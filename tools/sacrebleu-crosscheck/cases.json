@@ -1,0 +1,126 @@
+[
+ [
+  "identical-en",
+  "The results surprised the team.",
+  "The results surprised the team.",
+  {}
+ ],
+ [
+  "identical-zh",
+  "结果让团队感到意外。",
+  "结果让团队感到意外。",
+  {}
+ ],
+ [
+  "unrelated-en",
+  "The cat sat on the mat.",
+  "Quantum physics explains gravity.",
+  {}
+ ],
+ [
+  "partial-en",
+  "The results surprised the team.",
+  "The results shocked the team.",
+  {}
+ ],
+ [
+  "partial-zh",
+  "结果让团队感到意外。",
+  "结果让团队非常意外。",
+  {}
+ ],
+ [
+  "punctuation-en",
+  "Hello, world!",
+  "Hello world",
+  {}
+ ],
+ [
+  "repeat-en",
+  "a a a a",
+  "a a a",
+  {}
+ ],
+ [
+  "whitespace-run",
+  "a  b\tc\nd",
+  "abcd",
+  {}
+ ],
+ [
+  "fullwidth-space-zh",
+  "结果 让 团队 感到 意外",
+  "结果让团队感到意外",
+  {}
+ ],
+ [
+  "empty-hyp",
+  "",
+  "结果让团队感到意外。",
+  {}
+ ],
+ [
+  "empty-ref",
+  "结果让团队感到意外。",
+  "",
+  {}
+ ],
+ [
+  "mixed-lang",
+  "他 went to school yesterday",
+  "He went to school yesterday.",
+  {}
+ ],
+ [
+  "long-en",
+  "In traditional Chinese culture, exchanging gifts between relatives and friends is an important courtesy that expresses emotions and maintains relationships.",
+  "在中国传统文化中，亲朋好友之间互赠礼物是人际交往的一种重要礼俗，它表达情感并维系人际关系。",
+  {}
+ ],
+ [
+  "chrfpp-en",
+  "The results surprised the team, and the manager was happy.",
+  "The results surprised the team, and the manager was pleased.",
+  {
+   "wordOrder": 2
+  }
+ ],
+ [
+  "chrfpp-punct",
+  "Hello, (world)! Yes.",
+  "Hello (world) Yes.",
+  {
+   "wordOrder": 2
+  }
+ ],
+ [
+  "lowercase-on",
+  "The Results Surprised",
+  "the results surprised",
+  {
+   "lowercase": true
+  }
+ ],
+ [
+  "whitespace-on",
+  "a b c",
+  "abc",
+  {
+   "whitespace": true
+  }
+ ],
+ [
+  "beta-1",
+  "The results surprised the team.",
+  "The results shocked the team.",
+  {
+   "beta": 1
+  }
+ ],
+ [
+  "short-zh",
+  "礼物",
+  "礼物",
+  {}
+ ]
+]
