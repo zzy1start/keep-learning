@@ -1,10 +1,12 @@
 name: Mirror to Gitee
 
 on:
-  push:
-    branches: [main]
-    tags: ["v*"]
+  # 先只保留手动触发：Gitee 仓库/部署公钥配好之前，push 时不会每天挂一个红叉。
   workflow_dispatch:
+  # 配好 GITEE_SSH_PRIVATE_KEY 后，取消下面注释即可在 push/tag 时自动镜像：
+  # push:
+  #   branches: [main]
+  #   tags: ["v*"]
 
 permissions:
   contents: read

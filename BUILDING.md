@@ -95,6 +95,7 @@ node serve.js                    # 默认 http://127.0.0.1:8777
 3. 在 GitHub 仓库 Settings → Secrets and variables → Actions 添加：
    - `GITEE_SSH_PRIVATE_KEY`：私钥全文；
    - `GITEE_REPO`（可选）：`git@gitee.com:你的用户名/keep-learning.git`，不填则用默认值。
-4. push `main` 或打 tag 后，`mirror-gitee.yml` 会执行 `git push --mirror`。
+4. 配好 secret 后，在 GitHub Actions 里手动运行一次 `Mirror to Gitee`；
+   确认成功后再取消 workflow 里 `push` 触发器的注释，实现 push/tag 自动镜像。
 
 > 镜像仓库请设为只读说明：Issue/PR 以 GitHub 为准，避免两边分叉。
