@@ -66,6 +66,99 @@ function splitClauses(text) {
   return out.length ? out : [{ text: s, gap: 0 }];
 }
 
+/* ============ 听力修复：可单测的纯函数 ============ */
+/**
+ * 判断一篇材料是否属于“对话类”（长对话/短对话）。
+ * 【为什么需要】没有 M/W 标注且 AI 识别失败时，独白必须全篇同一音色；
+ * 对话则应按轮次男女交替——旧版对独白也交替，一段一个人的材料被读成两个人在对话。
+ * 判据来自材料自身字段与页面推导出的题型（如 Section A → 长对话）。
+ */
+function isDialogueMaterial(paper, kindHint) {
+  if (!paper) return false;
+  const parts = [kindHint, paper.type, paper.genre, paper.title,
+    paper.listeningType, paper.sectionType, paper.listeningGenre];
+  const text = parts.filter(Boolean).map(String).join(' ').toLowerCase();
+  return /conversation|dialogue|对话/.test(text);
+}
+
+/** 按行交替分配男女声：第 1 行（下标 0）男声，第 2 行女声…… */
+function alternateGenders(count) {
+  const n = Math.max(0, Math.floor(Number(count) || 0));
+  const out = [];
+  for (let i = 0; i < n; i++) out.push(i % 2 === 0 ? 'male' : 'female');
+  return out;
+}
+
+/** 空解析兜底：至少给「正确答案：B. 选项原文」，不再留一个空的“解析”蓝框。 */
+function listenExplainFallbackHTML(q, note) {
+  const opts = Array.isArray(q && q.opts) ? q.opts : [];
+  const a = q && Number.isInteger(q.a) ? q.a : -1;
+  const letter = a >= 0 && a < 26 ? String.fromCharCode(65 + a) : '';
+  const answer = (a >= 0 && opts[a] != null && String(opts[a]).trim())
+    ? '正确答案：' + (letter ? letter + '. ' : '') + esc(opts[a])
+    : '正确答案暂缺';
+  const tail = note ? '<br><span style="color:var(--tx3)">' + esc(note) + '</span>' : '';
+  return '<div class="tipbox lsn-explain-fallback"><b>解析</b>　' + answer + tail + '</div>';
+}
+
+/** 校验 AI 给的 evidence 是否真能在原文里逐字找到；找不到就丢弃（绝不把编造的句子当依据）。 */
+function listenEvidenceFromScript(evidence, scriptText) {
+  const norm = s => String(s == null ? '' : s).toLowerCase()
+    .replace(/[\u2018\u2019\u201c\u201d]/g, "'")
+    .replace(/[^a-z0-9']+/g, ' ').replace(/\s+/g, ' ').trim();
+  const ev = String(evidence == null ? '' : evidence).trim()
+    .replace(/^["'“”‘’]+|["'“”‘’]+$/g, '').trim();
+  if (!ev) return '';
+  const needle = norm(ev), hay = norm(scriptText);
+  if (!needle || !hay) return '';
+  return hay.includes(needle) ? ev : '';
+}
+
+/** HTML 实体解码（网页抓取用；纯字符串处理，Node 自检可直接调用）。 */
+function decodeHtmlEntities(s) {
+  const named = {
+    amp: '&', lt: '<', gt: '>', quot: '"', apos: "'", nbsp: ' ',
+    mdash: '—', ndash: '–', hellip: '…', middot: '·', bull: '•',
+    lsquo: '‘', rsquo: '’', ldquo: '“', rdquo: '”',
+    copy: '©', reg: '®', trade: '™',
+  };
+  return String(s == null ? '' : s)
+    .replace(/&#x([0-9a-f]+);/gi, (m, h) => {
+      const n = parseInt(h, 16);
+      return Number.isFinite(n) && n > 0 && n < 0x10FFFF ? String.fromCodePoint(n) : m;
+    })
+    .replace(/&#(\d+);/g, (m, d) => {
+      const n = parseInt(d, 10);
+      return Number.isFinite(n) && n > 0 && n < 0x10FFFF ? String.fromCodePoint(n) : m;
+    })
+    .replace(/&([a-z][a-z0-9]+);/gi, (m, name) => {
+      const v = named[String(name).toLowerCase()];
+      return v != null ? v : m;
+    });
+}
+
+/**
+ * 从网页 HTML 抽正文：去掉 script/style 等，把块级标签换成换行，再解实体、压缩空白。
+ * 【为什么不用 DOMParser】APK 的 WebView 有 DOM，但 Node 自检没有；
+ * 纯正则实现既能在浏览器跑，也能在 vm 里直接单测。
+ */
+function extractArticleText(html) {
+  let s = String(html == null ? '' : html);
+  s = s.replace(/<!--[\s\S]*?-->/g, ' ');
+  s = s.replace(/<(script|style|noscript|template|svg|head|iframe|object|canvas)\b[^>]*>[\s\S]*?<\/\1\s*>/gi, ' ');
+  // 未闭合的 script/style（网页被截断时）一直删到结尾，避免把 JS 当正文
+  s = s.replace(/<(script|style|noscript|template|svg|head|iframe)\b[^>]*>[\s\S]*$/gi, ' ');
+  s = s.replace(/<br\s*\/?>/gi, '\n');
+  s = s.replace(/<\/(p|div|li|tr|h[1-6]|section|article|header|footer|blockquote|pre|td|th|dd|dt|ul|ol|table)\s*>/gi, '\n');
+  s = s.replace(/<[^>]*>/g, ' ');
+  s = decodeHtmlEntities(s);
+  s = s.replace(/\u00a0/g, ' ').replace(/[\u200b-\u200d\ufeff]/g, '');
+  s = s.replace(/[ \t\f\v]+/g, ' ');
+  s = s.replace(/ *\n */g, '\n');
+  s = s.replace(/\n{3,}/g, '\n\n');
+  return s.trim();
+}
+
 const ViewListen = {
   kind: 'sentence',     // sentence | dialogue | cet6
   mode: 'read',         // read（改：可看原文、点击复现） | write（写：不显示原文）
@@ -466,7 +559,11 @@ const ViewListen = {
 
     this._script($('#scriptCard', box), turns, d.title);
     // 识别对话性别（男男/男女/女女），用于分配男女声
-    this.detectGenders(turns).then(() => this._paintGender());
+    /* 对话视图本身就是对话类：把 type/title 传进去，AI 失败时才能按轮次交替兜底 */
+    this._spGender = null;
+    this.genderInfo = '';
+    this._paintGender();
+    this.detectGenders(turns, { type: d.type, title: d.title, genre: d.genre }).then(() => this._paintGender());
     this._bindCommon(box, turns.map(t => t.en).join(' '));
   },
 
@@ -606,7 +703,12 @@ const ViewListen = {
     }
     /* missing:true —— 没有原文时给出"为什么/怎么办"，而不是留一片空白 */
     this._script($('#scriptCard', box), lines, p.title, { missing: true, p });
-    this.detectGenders(lines).then(() => this._paintGender());
+    /* 【2026-10-26】换篇时先清掉上一篇的说话人结论：没有原文的导入篇不会进 detectGenders，
+     * 旧实现会把上一篇的"男女对话/AI 识别"或"说话人识别失败"留在新篇上，误导用户。*/
+    this._spGender = null;
+    this.genderInfo = '';
+    this._paintGender();
+    this.detectGenders(lines, p).then(() => this._paintGender());
     this._bindCommon(box, lines.map(l => l.en).join(' '), p);
     if (p.qs && p.qs.length) this._renderQuiz(box, p.qs, p.id);
   },
@@ -688,6 +790,10 @@ const ViewListen = {
     const LV = {
       cet4: 'CET-4 听力理解', cet6: 'CET-6 听力理解',
     }[(p && p.type) || this.kind] || '听力作答';
+    /* 【解析】CET4 自带 explain/evidence → 原样显示；CET6 / 导入卷 explain 为空时
+     * 至少显示正确答案，AI 可用时随后自动补全（见 _ensureMissingExplains）。*/
+    const explains = this.submitted ? qs.map((q, i) => this._explainFor(p, q, i)) : [];
+    const explainNote = this.submitted && explains.some(x => !x) ? this._explainNote(p) : '';
 
     card.innerHTML = `
     <div class="card-h">${LV} <span class="tag tag-pri">满分 ${total}</span>
@@ -700,11 +806,12 @@ const ViewListen = {
       <div class="listen-quiz-content ${hidden ? 'listen-quiz-question-hidden' : ''}">
       ${qs.map((q, i) => `
         <div class="q-item">
-          <div class="qt">${stems[i].no}. ${stems[i].missing ? '<span class="q-missing">本题题干未印在卷面（只在录音中播报）</span>' : esc(stems[i].text)}</div>
+          <div class="qt"><span class="qt-no">${stems[i].no}.</span> <span class="q-stem">${stems[i].missing ? '<span class="q-missing">本题题干未印在卷面（只在录音中播报）</span>' : esc(stems[i].text)}</span></div>
           ${q.opts.map((o, k) => `<div class="q-opt ${this.submitted ? (k === q.a ? 'right' : (this.answers[i] === k ? 'wrong' : '')) : (this.answers[i] === k ? 'sel' : '')}"
             data-q="${i}" data-o="${k}"><span class="k">${'ABCD'[k]}</span><span>${this._wording(o)}</span></div>`).join('')}
-          ${this.submitted ? `<div class="tipbox"><b>解析</b>　${esc(q.explain || '')}
-            ${q.evidence ? `<br><span style="color:var(--tx3)">原文依据：${esc(q.evidence)}</span>` : ''}</div>` : ''}
+          ${this.submitted ? (explains[i]
+            ? `<div class="tipbox"><b>解析</b>　${esc(explains[i].explain)}${explains[i].evidence ? `<br><span style="color:var(--tx3)">原文依据：${esc(explains[i].evidence)}</span>` : ''}</div>`
+            : listenExplainFallbackHTML(q, explainNote)) : ''}
         </div>`).join('')}
       </div>
       <div class="row" style="margin-top:14px">
@@ -721,6 +828,9 @@ const ViewListen = {
      * 若先绑定再innerHTML，监听会随旧节点一起丢失，
      * 导致「提交作答 / 显示答案」点了没反应。*/
     this._bindQuiz(card, qs);
+    /* 判分/重渲染已经完成，这里只是**不阻塞地**补解析；
+     * AI 未配置、无原文或失败都静默降级为上面的“正确答案”兜底。*/
+    if (this.submitted) this._ensureMissingExplains(p, qs, explains);
   },
 
   _bindQuiz(card, qs) {
@@ -768,6 +878,151 @@ const ViewListen = {
     });
   },
 
+  /* ---------- 缺失解析：正确答案兜底 + AI 一次性补全 ---------- */
+  /** 缓存键：篇目 id（内置/导入都稳定）；没有 id 时退回标题。 */
+  _passKey(p) {
+    if (!p) return '';
+    return String(p.id != null ? p.id : (p.title || ''));
+  },
+
+  /** Store.d 里的解析缓存：{ [passId]: { [题下标]: { explain, evidence } } } */
+  _explainStore() {
+    if (typeof Store === 'undefined' || !Store.d) return {};
+    if (!Store.d.lsnExplain || typeof Store.d.lsnExplain !== 'object') Store.d.lsnExplain = {};
+    return Store.d.lsnExplain;
+  },
+
+  /** 某题的解析：题库自带的 explain 优先（CET4 行为不变），其次用缓存。 */
+  _explainFor(p, q, i) {
+    const own = String((q && q.explain) || '').trim();
+    if (own) return { explain: own, evidence: String((q && q.evidence) || '').trim(), from: 'data' };
+    const key = this._passKey(p);
+    if (!key) return null;
+    const slot = this._explainStore()[key];
+    const hit = slot && slot[i];
+    const explain = String((hit && hit.explain) || '').trim();
+    if (!explain) return null;
+    return { explain: explain, evidence: String((hit && hit.evidence) || '').trim(), from: 'ai' };
+  },
+
+  /** 兜底框下面那行灰字：正在生成 / 暂缺。 */
+  _explainNote(p) {
+    const key = this._passKey(p);
+    this._explainLoading = this._explainLoading || {};
+    this._explainTried = this._explainTried || {};
+    this._explainFailed = this._explainFailed || {};
+    if (this._explainLoading[key]) return 'AI 正在生成本篇解析，稍后自动刷新…';
+    if (this._explainFailed[key] || this._explainTried[key]) return '解析暂缺，已显示正确答案';
+    const hasScript = !!this._scriptTextOf(p);
+    if (typeof AI !== 'undefined' && AI && AI.ready && hasScript) return 'AI 正在生成本篇解析，稍后自动刷新…';
+    return '解析暂缺，已显示正确答案';
+  },
+
+  /** 本篇原文纯文本（M/W 标签已在 _normalizeSpeakerLines 里拆掉）。 */
+  _scriptTextOf(p) {
+    const arr = (p && Array.isArray(p.script)) ? p.script : [];
+    return arr.map(l => String((l && (l.en != null ? l.en : l.text)) || '')).filter(Boolean).join('\n').trim();
+  },
+
+  /**
+   * 提交后：若本篇仍有题缺解析，且 AI 可用、本篇有原文 → **一次请求**为整篇补齐。
+   * 结果写 Store.d.lsnExplain[passId]（持久化，避免重复花钱），成功后局部重渲染。
+   * 失败/未配置：不改判分结果，保留“正确答案”兜底，只给轻提示。
+   */
+  _ensureMissingExplains(p, qs, explains) {
+    if (!this.submitted || !p || !Array.isArray(qs) || !qs.length) return;
+    const missing = [];
+    qs.forEach((q, i) => { if (!(explains && explains[i])) missing.push(i); });
+    if (!missing.length) return;
+    const key = this._passKey(p);
+    this._explainLoading = this._explainLoading || {};
+    this._explainTried = this._explainTried || {};
+    this._explainFailed = this._explainFailed || {};
+    this._explainNotified = this._explainNotified || {};
+    if (this._explainLoading[key] || this._explainTried[key]) return;
+    const scriptText = this._scriptTextOf(p);
+    const hasAI = typeof AI !== 'undefined' && AI && AI.ready;
+    /* 未配置 AI / 本篇没有原文：静默降级（不回退、不阻塞判分），只提示一次。 */
+    if (!hasAI || !scriptText) {
+      if (!this._explainNotified[key]) {
+        this._explainNotified[key] = true;
+        if (typeof App !== 'undefined' && App.toast) App.toast('解析暂缺，已显示正确答案', '');
+      }
+      return;
+    }
+    this._explainLoading[key] = true;
+    const self = this;
+    const items = missing.map(i => {
+      const q = qs[i] || {};
+      const opts = Array.isArray(q.opts) ? q.opts : [];
+      const letter = Number.isInteger(q.a) && q.a >= 0 && q.a < 26 ? String.fromCharCode(65 + q.a) : '';
+      const stem = self._stemInfo(q, i, p);
+      return {
+        i: i,
+        question: stem.text || '（卷面未印题干，只播报）',
+        options: opts.map((o, k) => 'ABCD'[k] + ') ' + String(o || '')),
+        answer: letter || '未知',
+        answerText: opts[q.a] != null ? String(opts[q.a]) : '',
+      };
+    });
+    const prompt = [
+      '你是四六级听力解析员。根据下面的听力原文，为每道题写中文解析和原文依据。',
+      '要求：',
+      '1) explain：用中文说明正确答案为什么成立、主要干扰项为什么错，80 字以内；',
+      '2) evidence：必须从原文中**逐字摘抄**一个能支持答案的完整英文句子，不得改写、翻译或拼接；',
+      '3) 题目可能没有印题干（四六级听力只在录音里播报），此时以正确答案选项为主要线索解释；',
+      '4) 只返回 JSON：{"items":[{"i":0,"explain":"…","evidence":"…"}]}，i 是题目下标（从 0 开始）。',
+      '', '题目：' + JSON.stringify(items),
+      '', '原文：', scriptText.slice(0, 12000),
+    ].join('\n');
+    const render = function () {
+      const cur = self.shown && self.shown[self.piPass || 0];
+      if (!cur || self._passKey(cur) !== key || !self.submitted) return;
+      const box = (typeof document !== 'undefined' && document.querySelector)
+        ? document.querySelector('#lsnBody') : null;
+      if (box) self._renderQuiz(box, qs, p.id);
+    };
+    AI.jsonRetry([
+      { role: 'system', content: '你只输出合法 JSON，不要 markdown。解析要基于原文，禁止编造原文依据。' },
+      { role: 'user', content: prompt },
+    ], { max: 6000, temp: 0.2, timeout: 90000 }).then(function (out) {
+      const list = Array.isArray(out) ? out : ((out && (out.items || out.questions)) || []);
+      const nums = list.map(function (x) { return Number(x && x.i); }).filter(Number.isInteger);
+      const oneBased = nums.length > 0 && nums.indexOf(0) < 0
+        && nums.every(function (n) { return n >= 1 && n <= qs.length; });
+      const store = self._explainStore();
+      const slot = Object.assign({}, store[key] || {});
+      let saved = 0;
+      list.forEach(function (it) {
+        let i = Number(it && it.i);
+        if (!Number.isInteger(i)) return;
+        if (oneBased) i -= 1;
+        if (i < 0 || i >= qs.length) return;
+        const explain = String((it && it.explain) || '').trim();
+        if (!explain) return;
+        const evidence = listenEvidenceFromScript(it && it.evidence, scriptText);
+        slot[i] = { explain: explain, evidence: evidence };
+        saved++;
+      });
+      if (saved) {
+        store[key] = slot;
+        if (typeof Store !== 'undefined' && Store.flush) Store.flush();
+      } else {
+        self._explainFailed[key] = true;
+      }
+      self._explainTried[key] = true;
+      self._explainLoading[key] = false;
+      render();
+      if (saved && typeof App !== 'undefined' && App.toast) App.toast('已生成 ' + saved + ' 道题的解析', 'ok');
+    }).catch(function () {
+      self._explainLoading[key] = false;
+      self._explainFailed[key] = true;
+      self._explainTried[key] = true;
+      render();
+      if (typeof App !== 'undefined' && App.toast) App.toast('解析暂缺，已显示正确答案', '');
+    });
+  },
+
   /* ---------- 把选项也拆成可划线词（供长句/难句分析）---------- */
   _wording(s) {
     const text = String(s || '');
@@ -791,8 +1046,18 @@ const ViewListen = {
     if (!roots.length) { App.toast('找不到对应听力篇目', 'err'); return; }
     App.modal('补听力原文', `
       <div class="hint" style="line-height:1.8;margin-bottom:10px">
-        把 Tapescript / 听力原文粘贴进来。AI 会按题号范围切分到 ${roots.length} 篇材料，
+        把 Tapescript / 听力原文粘贴进来，或从网页抓取正文。AI 会按题号范围切分到 ${roots.length} 篇材料，
         去掉题干说明、页眉页脚和中文注释，保留原文；保存后即可用本地 TTS 逐句朗读。
+      </div>
+      <div class="row" style="gap:8px;align-items:flex-end;margin-bottom:6px">
+        <div style="flex:1;min-width:0">
+          <div class="hint" style="margin-bottom:4px">网页地址（仅 http/https）</div>
+          <input class="inp" id="fillUrl" placeholder="https://…/tapescript.html" style="width:100%">
+        </div>
+        <button class="btn btn-gh" id="fillFetch">联网抓取</button>
+      </div>
+      <div class="hint" id="fillFetchMsg" style="line-height:1.7;margin-bottom:10px">
+        抓的是网页正文，可能混入导航/评论；请自己确认是该篇 Tapescript，再点「AI 审核并补入」。
       </div>
       <textarea class="inp" id="fillRaw" style="min-height:300px"
         placeholder="粘贴听力原文，例如：Conversation one ... Question 1 ..."></textarea>
@@ -805,6 +1070,10 @@ const ViewListen = {
       const ta = bx.querySelector('#fillRaw');
       const btn = bx.querySelector('#fillGo');
       const msg = bx.querySelector('#fillMsg');
+      const urlInp = bx.querySelector('#fillUrl');
+      const fetchBtn = bx.querySelector('#fillFetch');
+      const fetchMsg = bx.querySelector('#fillFetchMsg');
+      if (fetchBtn) fetchBtn.onclick = () => this._fetchTranscriptUrl(urlInp && urlInp.value, ta, fetchMsg, fetchBtn);
       btn.onclick = async () => {
         const raw = String(ta.value || '').trim();
         if (raw.length < 80) { msg.innerHTML = '<span style="color:var(--err)">内容太短，先粘贴完整听力原文</span>'; return; }
@@ -824,6 +1093,74 @@ const ViewListen = {
         }
       };
     });
+  },
+
+  /**
+   * 「联网抓取」：URL → fetch（APK 内 js/native-http.js 已把外部请求转给 CapacitorHttp，
+   * 可跨域）→ extractArticleText 纯函数抽正文 → 填进 textarea。**不自动提交 AI**。
+   * 只允许 http/https，10 秒超时；失败给出具体原因（地址/网络/跨域/非 HTML/超时）。
+   */
+  async _fetchTranscriptUrl(rawUrl, ta, msg, btn) {
+    const setMsg = html => { if (msg) msg.innerHTML = html; };
+    const url = String(rawUrl == null ? '' : rawUrl).trim();
+    if (!url) { setMsg('<span style="color:var(--err)">请先填写网页地址（http/https）</span>'); return; }
+    if (!/^https?:\/\//i.test(url)) { setMsg('<span style="color:var(--err)">只支持 http/https 网页地址</span>'); return; }
+    try {
+      const u = new URL(url);
+      if (!/^https?:$/.test(u.protocol)) throw new Error('bad protocol');
+    } catch (e) {
+      setMsg('<span style="color:var(--err)">地址格式不正确（只支持 http/https）</span>');
+      return;
+    }
+    if (typeof fetch !== 'function') {
+      setMsg('<span style="color:var(--err)">当前环境不支持网络请求，请改用粘贴</span>');
+      return;
+    }
+    const label = btn ? btn.textContent : '联网抓取';
+    if (btn) { btn.disabled = true; btn.textContent = '抓取中…'; }
+    setMsg('<span style="color:var(--pri)">正在抓取网页正文…（10 秒超时）</span>');
+    let timer = null;
+    let ctrl = null;
+    const timeoutP = new Promise((_, reject) => {
+      timer = setTimeout(() => {
+        if (ctrl) { try { ctrl.abort(); } catch (e) { /* ignore */ } }
+        reject(new Error('抓取超时（10 秒）'));
+      }, 10000);
+    });
+    try {
+      ctrl = (typeof AbortController !== 'undefined') ? new AbortController() : null;
+      const req = fetch(url, {
+        method: 'GET',
+        headers: { 'Accept': 'text/html,application/xhtml+xml,text/plain;q=0.9,*/*;q=0.5' },
+        signal: ctrl ? ctrl.signal : undefined,
+      });
+      const res = await Promise.race([req, timeoutP]);
+      if (!res || !res.ok) throw new Error('HTTP ' + ((res && res.status) || '?'));
+      const ctype = String((res.headers && res.headers.get && res.headers.get('content-type')) || '');
+      if (ctype && !/html|xml|text\/plain/i.test(ctype)) {
+        throw new Error('返回的不是网页（' + ctype.split(';')[0].trim() + '）');
+      }
+      const html = await res.text();
+      const text = extractArticleText(html);
+      if (!text || text.length < 80) throw new Error('没有抽到正文（可能是动态加载页面，或需要登录）');
+      const oldText = ta ? String(ta.value || '').trim() : '';
+      if (ta) ta.value = oldText ? oldText + '\n\n' + text : text;
+      setMsg('<span style="color:var(--ok)">已抓取 ' + text.length + ' 字符（' + (oldText ? '追加到' : '填入')
+        + '文本框）。抓的是网页正文，请自己确认是该篇 Tapescript，再点「AI 审核并补入」。</span>');
+    } catch (e) {
+      const em = String((e && e.message) || e || '');
+      let tip;
+      if (/超时|timeout|abort/i.test(em)) tip = '抓取超时（10 秒）：网络慢、站点不响应或被拦截';
+      else if (/failed to fetch|networkerror|load failed|网络|跨域|cors/i.test(em)) {
+        tip = '网络请求失败：可能是断网、跨域/CORS 限制或站点拒绝访问'
+          + (typeof window !== 'undefined' && window.__nativeHttp ? '' : '（APK 内会走原生网络，可跨域）');
+      } else if (/HTTP \d+/.test(em)) tip = '网页返回错误（' + em + '）';
+      else tip = em || '抓取失败';
+      setMsg('<span style="color:var(--err)">' + esc(tip) + '</span>');
+    } finally {
+      if (timer) clearTimeout(timer);
+      if (btn) { btn.disabled = false; btn.textContent = label || '联网抓取'; }
+    }
   },
 
   async _reviewTranscript(raw, roots) {
@@ -1775,8 +2112,12 @@ const ViewListen = {
    * AI 识别对话性别构成（男男 / 男女 / 女女）
    * 识别结果用于：1) 朗读时自动分配男声/女声　2) 界面上告知学生
    */
-  async detectGenders(lines) {
-    if (!lines || !lines.length) return null;
+  async detectGenders(lines, paper) {
+    if (!lines || !lines.length) {
+      this._spGender = null;
+      this.genderInfo = '';
+      return null;
+    }
     // 先用数据自带的 M/W 标注（最可靠）
     const annotated = lines.map(l => (l.sp || '').toUpperCase());
     if (annotated.some(x => x === 'M' || x === 'W')) {
@@ -1794,14 +2135,27 @@ const ViewListen = {
       return this.genderInfo;
     }
 
-    // 数据没标注 → 交给 AI 判断（AI 未加载/未配置时不要抛错，直接按独白处理）
-    if (typeof AI === 'undefined' || !AI.ready) {
-      /* 【独白不轮换】以前这里按奇偶硬造男/女交替，于是独白篇章被读成"男女对话"，
-       * 一段一个人念的材料听起来像两个人在对话。没有说话人标注就**不指定逐行性别**：
+    /* 【对话类兜底】没有 M/W 标注时：若本篇从类型/标题/题型可判定为对话
+     * （长对话、短对话、Section A 等），AI 不可用或识别失败就按轮次交替男女声；
+     * 独白仍保持全篇同一音色——不再把独白读成“男女对话”。*/
+    const kindHint = (paper && typeof this._paperKind === 'function') ? this._paperKind(paper) : '';
+    const dialogue = isDialogueMaterial(paper, kindHint);
+    const fallbackMono = () => {
+      /* 【独白不轮换】没有说话人标注就**不指定逐行性别**：
        * 全篇用同一个音色（上方「女声/男声」按钮可强制指定）。*/
       this._spGender = null;
-      this.genderInfo = '未标注说话人：全篇用同一个音色（上方可切男声 / 女声）';
+      this.genderInfo = '本篇按独白处理：全篇同一个音色（上方可切男声 / 女声）';
       return this.genderInfo;
+    };
+    const fallbackDialogue = () => {
+      this._spGender = alternateGenders(lines.length);
+      this.genderInfo = '按对话轮次自动交替男女声（未识别到真实性别）';
+      return this.genderInfo;
+    };
+
+    // 数据没标注 → 交给 AI 判断（AI 未加载/未配置时不要抛错）
+    if (typeof AI === 'undefined' || !AI || !AI.ready) {
+      return dialogue ? fallbackDialogue() : fallbackMono();
     }
     try {
       const r = await AI.json([{
@@ -1817,6 +2171,9 @@ const ViewListen = {
         && /对话/.test(String(r.label || ''))) {
         this._spGender = r.genders.map(x => (String(x).toLowerCase() === 'male' ? 'male' : 'female'));
         this.genderInfo = `本篇为${r.label || '对话'}（AI 识别）`;
+      } else if (dialogue) {
+        /* 明明是对话类却判成独白 → 也走交替兜底，避免整篇一个音色 */
+        return fallbackDialogue();
       } else {
         /* AI 没判成对话（多半就是独白）→ 不轮换，全篇同一个音色 */
         this._spGender = null;
@@ -1824,9 +2181,10 @@ const ViewListen = {
       }
       return this.genderInfo;
     } catch (e) {
-      this._spGender = null;
-      this.genderInfo = '说话人识别失败：全篇用同一个音色（上方可切男声 / 女声）';
-      return this.genderInfo;
+      if (dialogue) return fallbackDialogue();
+      /* 独白即使 AI 调用失败也不该显示"说话人识别失败"（用户会以为功能坏了）：
+       * 按独白口径说明——全篇同一音色，可用上方按钮强制指定。*/
+      return fallbackMono();
     }
   },
 

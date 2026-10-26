@@ -369,6 +369,86 @@ const BOOK = makeBook();
     assert.ok(html.includes('id="qTime"'), '限时标签仍保留');
   });
 
+  /* ===== 2026-10-26 用户反馈：音标 / 已掌握口径 / 今日复习进度 / 拼写轮换 ===== */
+  await check('音标：词书 ph 为空占位（"/  /"）时回退内置词典，不再显示 "//"', () => {
+    const { V, ctx } = loadView();
+    const w = { w: 'destined', ph: '/  /', tr: [{ t: 'adj', d: '命中注定的' }] };
+    let html = V._cardHTML(w, { opts: [], answer: 0 });
+    assert.ok(!/wcard-ph">\s*\/\s*\//.test(html), '空音标占位不应原样渲染：' + (html.match(/wcard-ph[^<]*/) || [''])[0]);
+    ctx.Dict.get = () => ["'destɪn", '命中注定的', 'destined'];
+    html = V._cardHTML(w, { opts: [], answer: 0 });
+    assert.ok(html.includes('/ˈdestɪn/'), '应回退到内置词典音标（并补 / /、修 ʼ→ˈ）');
+    const detail = V._detailHTML(w, null);
+    assert.ok(detail.includes('/ˈdestɪn/'), '详情页音标也要回退');
+  });
+
+  await check('词书页：测试跳过的简单词计入「已掌握」/「已学」，今日复习显示实际进度', () => {
+    const { V, ctx, store, view } = loadView();
+    const E = ctx.window.VocabEngine;
+    E.reset(); E.load(store);
+    // 两个词：语言测试整带跳过 → L3 且从未作答
+    E.stateOf('cet6:deserve', 's0', true).level = 3;
+    E.stateOf('cet6:deserve', 's0', true).attempts = 0;
+    E.stateOf('cet6:abandon', 's0', true).level = 3;
+    E.stateOf('cet6:abandon', 's0', true).attempts = 0;
+    // 一个词：真正作答过且 L4 → 已掌握
+    E.stateOf('cet6:welfare', 's0', true).level = 4;
+    E.stateOf('cet6:welfare', 's0', true).attempts = 3;
+    // 今天复习过 2 个；其中一条是"新词"不计入复习
+    const today = new Date('2026-10-16T10:00:00+08:00').getTime();   // 与 App.today() 的桩保持一致
+    E.load().events.push(
+      { ts: today, wordId: 'cet6:deserve', role: 'review', correct: true },
+      { ts: today, wordId: 'cet6:abandon', role: 'quiz', correct: true },
+      { ts: today, wordId: 'cet6:welfare', role: 'new', correct: true }
+    );
+    E.save();
+    const counts = V._engineCounts();
+    assert.equal(counts.skippedKnown, 2, '整带跳过词数应为 2，实际 ' + counts.skippedKnown);
+    /* 有 skipBands 时按频带稳定统计：练过、甚至被降级也不该从"已掌握"里消失 */
+    E.load().user.skipBands = [0];
+    E.save();
+    const bandCounts = V._engineCounts();
+    assert.ok(bandCounts.skippedKnown >= 2, '按频带统计应覆盖跳过带的词，实际 ' + bandCounts.skippedKnown);
+    E.stateOf('cet6:deserve', 's0', true).attempts = 3;   // 练过一次
+    E.save();
+    const after = V._engineCounts();
+    assert.equal(after.skippedKnown, bandCounts.skippedKnown, '练过之后跳过带的词仍应计入已掌握');
+    assert.equal(V._todayReviewDone(), 2, '今日复习应只算 review/quiz 去重词，实际 ' + V._todayReviewDone());
+    V._renderShell(null);
+    assert.ok(view.innerHTML.includes('含测试跳过'), '已掌握应标注含测试跳过');
+    assert.ok(view.innerHTML.includes('待复习'), '今日复习应同时给出待复习数');
+    assert.ok(/今日复习[\s\S]{0,120}>2</.test(view.innerHTML), '今日复习应显示实际进度 2');
+  });
+
+  await check('拼写练习：queue 与 slots 同步；按时间排序用引擎逐词真实作答时间（不再永远同一批）', async () => {
+    const { V, ctx, store } = loadView();
+    const E = ctx.window.VocabEngine;
+    E.reset(); E.load(store);
+    store.d.srs.cet6 = {
+      deserve: { reps: 2 }, abandon: { reps: 2 }, etiquette: { reps: 2 },
+    };
+    // 引擎里逐词真实作答时间：deserve 最早、abandon 最晚
+    E.stateOf('cet6:deserve', 's0', true).lastGradedAt = new Date('2026-10-16T01:00:00+08:00').toISOString();
+    E.stateOf('cet6:abandon', 's0', true).lastGradedAt = new Date('2026-10-16T03:00:00+08:00').toISOString();
+    E.stateOf('cet6:etiquette', 's0', true).lastGradedAt = new Date('2026-10-16T02:00:00+08:00').toISOString();
+    E.save();
+    V.book = makeBook(); V.mode = 'spell'; V.spellOrder = 'time';
+    V._begin('spell');
+    assert.equal(V.queue.length, V.slots.length, '拼写轮 queue 必须与 slots 一一对应');
+    assert.deepEqual(V.queue.map(w => w.w), V.slots.map(sl => sl.wordRef.w), 'queue 应等于 slots 的词');
+    const order = V.slots.map(sl => sl.wordRef.w);
+    assert.ok(order.indexOf('deserve') < order.indexOf('etiquette'), '按时间：更早作答的 deserve 应排在 etiquette 前：' + JSON.stringify(order));
+    assert.ok(order.indexOf('etiquette') < order.indexOf('abandon'), '按时间：etiquette 应排在 abandon 前：' + JSON.stringify(order));
+
+    // 点「乱序」必须真的改变当前拼写轮的状态，而不是改另一个模式遗留的 queue
+    V.qi = 0;
+    const before = V.slots.map(sl => sl.wordRef.w);
+    await V._onAct('spellOrder', { dataset: { order: 'random' } });
+    assert.equal(V.spellOrder, 'random', '应记录乱序选择');
+    assert.equal(V.queue.length, V.slots.length, '乱序后 queue 仍应与 slots 对应');
+    assert.ok(V.slots.slice(0, 1).map(x => x.wordRef.w).join() === before.slice(0, 1).join(), '当前题不动');
+  });
+
   if (failed) process.exitCode = 1;
   else console.log('全部 ' + passed + ' 项背单词接线检查通过');
 })();

@@ -196,7 +196,10 @@ svg.ic-fill path:last-child{fill:none;stroke:currentColor;stroke-width:1.8;strok
 .q-opt.right .k{background:var(--ok);color:#fff}
 .q-opt.wrong{border-color:var(--err);background:var(--err-l)}
 .q-opt.wrong .k{background:var(--err);color:#fff}
-.listen-quiz-question-hidden .qt{filter:blur(6px);opacity:.5;user-select:none}
+/* 写模式只糊题干文本：题号（.qt-no）保持清晰，方便边听边对题号。
+   旧规则直接 blur .qt，把序号也糊掉了。 */
+.listen-quiz-question-hidden .q-stem{filter:blur(6px);opacity:.5;user-select:none;display:inline-block;max-width:calc(100% - 30px);vertical-align:top}
+.q-item .qt .qt-no{display:inline-block;margin-right:1px;user-select:none}
 /* 考场顺序播放：正在播报的题干高亮（原文→逐题题干） */
 .q-item .qt.ask{background:var(--pri-l);border-left:3px solid var(--pri);padding-left:9px;border-radius:6px}
 .tipbox{margin-top:9px;padding:10px 13px;border-radius:11px;background:var(--pri-l);color:var(--tx2);

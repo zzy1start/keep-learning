@@ -26,7 +26,6 @@ const ViewVocab = {
     root = App.freshView();
     const b = this.book;
     const prog = Store.bookProgress(b.id);
-    const pct = prog.total ? Math.round(prog.learned / prog.total * 100) : 0;
     const dayN = Store.d.settings.dailyNew;
     /* 【今日新词按"真正学过的新词"统计】原来取 stats.daily.words，
      * 那里把复习/抽检/拼写答对也算进去 → 目标提前显示完成。*/
@@ -41,6 +40,16 @@ const ViewVocab = {
      * 直接并入 L1/L3 复习池，这时 srs 镜像里虽然还有没 reps 的词，引擎却已经没有 L0 可教了。
      * 用引擎口径决定按钮文案，避免出现"点开始学习却提示今天任务已完成"的困惑。*/
     const E = this._engine();
+    /* 【2026-10-26 用户反馈】词书页顶部「已掌握」要把词汇量测试整带跳过的简单词算进去：
+     * 这些词引擎里是 L3（认识）且从未作答——旧口径只数 L4+作答过 → 显示 34，
+     * 而用户看到词书里 3000+ 词其实都"认过"。现在：已学/已掌握都加上"测试跳过已知"，
+     * 覆盖率同步用这个口径；同时今日复习改为"今天实际复习过的词数"，不再恒等于待复习总数。*/
+    const counts = this._engineCounts();
+    const knownSkipped = counts ? counts.skippedKnown : 0;
+    const learnedDisp = (counts ? counts.learned : prog.learned) + knownSkipped;
+    const masteredDisp = (counts ? counts.mastered : prog.mastered) + knownSkipped;
+    const pct = prog.total ? Math.round(learnedDisp / prog.total * 100) : 0;
+    const todayReview = this._todayReviewDone();
     const engineNewLeft = E ? this._engineNewLeft() : null;
     const newLeft = engineNewLeft != null ? engineNewLeft : remainingNew;
     /* 【恢复新词】没新词时看看还剩多少"能救回来"的词：引擎里从未真正作答过
@@ -80,14 +89,14 @@ const ViewVocab = {
       <div class="card" style="display:flex;align-items:center;gap:20px;padding:20px">
         <div style="width:92px;height:92px;border-radius:20px;background:linear-gradient(135deg,#4f86ff,#6f5bff);
           color:#fff;display:flex;flex-direction:column;align-items:center;justify-content:center;flex:none">
-          <span style="font-size:22px;font-weight:800">${prog.learned}</span>
+          <span style="font-size:22px;font-weight:800">${learnedDisp}</span>
           <span style="font-size:11px;opacity:.85">/ ${b.total}</span>
         </div>
         <div style="flex:1;min-width:0">
           <div style="font-size:17px;font-weight:750;margin-bottom:3px">${bk0name(b)}</div>
           <div class="bar" style="margin:8px 0 9px"><i style="width:${Math.min(100, pct)}%"></i></div>
           <div class="row" style="font-size:12.5px;color:var(--tx3);gap:16px">
-            <span>已掌握 <b style="color:var(--ok)">${prog.mastered}</b></span>
+            <span title="${knownSkipped ? '含词汇量测试整带跳过的 ' + knownSkipped + ' 个简单词' : 'L4 且作答过的词'}">已掌握 <b style="color:var(--ok)">${masteredDisp}</b>${knownSkipped ? `<span class="hint" style="font-size:11px">（含测试跳过 ${knownSkipped}）</span>` : ''}</span>
             <span>待复习 <b style="color:var(--warn)">${dueList.length}</b></span>
             <span>覆盖率 ${pct}%</span>
             ${prog.skipped ? `<span>已跳过 <b style="color:var(--purple)">${prog.skipped}</b></span>` : ''}
@@ -107,7 +116,8 @@ const ViewVocab = {
         <div class="grid g2" style="gap:10px">
           <div class="stat" style="padding:10px 12px"><div class="k">今日新词</div>
             <div class="v" style="font-size:20px">${todayNew}<small style="font-size:12px;color:var(--tx3)"> / ${dayN}</small></div></div>
-          <div class="stat" style="padding:10px 12px"><div class="k">今日复习</div><div class="v" style="font-size:20px">${dueList.length}</div></div>
+          <div class="stat" style="padding:10px 12px"><div class="k">今日复习</div>
+            <div class="v" style="font-size:20px">${todayReview}<small style="font-size:12px;color:var(--tx3)"> / 待复习 ${dueList.length}</small></div></div>
         </div>
         <div class="row" style="margin-top:10px;gap:8px;align-items:center;flex-wrap:wrap">
           <label for="dailyNewGoal" style="font-size:12px;color:var(--tx2);white-space:nowrap">每日新词目标</label>
@@ -720,11 +730,25 @@ const ViewVocab = {
   /** 拼写练习只从有过学习记录的词中取题；今天学过的始终排在前面。 */
   _arrangeSpell(words, order = this.spellOrder || 'time') {
     const recs = Store.d.srs[this.book.id] || {};
+    const E = this._engine();
+    /* 【2026-10-26 用户反馈"拼写练习一直是这几个单词"】
+     * 旧实现用 srs.last 排序，但 mirrorToSrs 每次都会把整本词书的 last 刷成 now，
+     * 于是所有词时间相同 → 稳定按字母序 → 永远前 20 个。
+     * 现在优先用引擎逐词的真实作答时间 lastGradedAt（拼写走 gradeFree 也会写），
+     * 只有引擎没有记录时才退回 srs；整组都没时间时随机，避免固定同一批。*/
     const timeOf = word => {
+      if (E) {
+        try {
+          const wid = this._quiz() ? VocabQuiz.wordId(this.book, word) : word.w;
+          const st = E.stateOf(wid, 's0', false);
+          const t = st && st.lastGradedAt ? Date.parse(st.lastGradedAt) : 0;
+          if (t) return t;
+        } catch (e) { /* 引擎不可用：退回 srs */ }
+      }
       const rec = recs[word.w] || {};
       const history = Array.isArray(rec.history) ? rec.history : [];
       const lastHistory = history.length ? history[history.length - 1].t : 0;
-      return Number(rec.last || lastHistory || 0);
+      return Number(rec.spellAt || rec.last || lastHistory || 0);
     };
     const isToday = word => {
       const ts = timeOf(word);
@@ -735,10 +759,72 @@ const ViewVocab = {
     };
     const today = words.filter(isToday);
     const earlier = words.filter(word => !isToday(word));
-    const arrangeGroup = group => order === 'random'
-      ? App.shuffle(group.slice())
-      : group.slice().sort((a, b) => timeOf(a) - timeOf(b) || a.w.localeCompare(b.w));
+    const arrangeGroup = group => {
+      if (order === 'random') return App.shuffle(group.slice());
+      /* 全都没时间戳（旧存档）：随机一次，别再退回字母序固定同一批 */
+      if (!group.some(w => timeOf(w) > 0)) return App.shuffle(group.slice());
+      return group.slice().sort((a, b) => timeOf(a) - timeOf(b) || a.w.localeCompare(b.w));
+    };
     return arrangeGroup(today).concat(arrangeGroup(earlier));
+  },
+
+  /**
+   * 引擎口径的计数（用于词书页顶部进度）：
+   * skippedKnown = 词汇量测试整带跳过 / 自评认识后从未作答的 L3 词（senses 去重后的词数）。
+   * 用户明确要求这些"默认跳过的简单词"要算进「已掌握」。
+   */
+  _engineCounts() {
+    const E = this._engine(), b = this.book;
+    if (!E || !b || typeof E.stats !== 'function') return null;
+    E.load(Store);
+    const s = E.load();
+    const st = E.stats() || {};
+    const prefix = String(b.id) + ':';
+    const seen = new Set();
+    for (const k in (s.words || {})) {
+      if (!k.startsWith(prefix)) continue;
+      const row = s.words[k];
+      if ((row.attempts || 0) === 0 && (row.level || 0) >= 3) seen.add(k.slice(0, k.lastIndexOf('#')));
+    }
+    /* 【2026-10-26 真机复验】只数"从未作答的 L3"会让已掌握随练习上下跳：
+     * 被测试跳过的词一旦真的练了一次（attempts>0）就从统计里消失，已掌握反而变小。
+     * 用户要的是"测试默认跳过的简单词都算已掌握"——按**频带**数：词频落在跳过带里的词
+     * 一律计入（它们本来就是词汇量测试判定的"已认识"），练过/错一次也不会把数字变没。
+     * 引擎没有 skipBands（没做词汇量测试）时，退回原来的 L3 未作答口径。*/
+    let skippedKnown = seen.size;
+    const bands = (s.user && Array.isArray(s.user.skipBands)) ? s.user.skipBands : [];
+    const Q = this._quiz();
+    if (bands.length && Q && typeof Q.bandOf === 'function') {
+      const set = new Set(bands.map(Number));
+      let n = 0;
+      for (const w of (b.words || [])) {
+        try { if (set.has(Q.bandOf(b, w))) n++; } catch (e) { /* 单词语料异常忽略 */ }
+      }
+      if (n > skippedKnown) skippedKnown = n;
+    }
+    return { learned: st.learned || 0, mastered: st.mastered || 0, skippedKnown };
+  },
+
+  /** 今天真正复习过的词数（事件日志按词去重；让「今日复习」随作答增长，而不是恒等于待复习总数） */
+  _todayReviewDone() {
+    const E = this._engine();
+    if (!E || typeof E.load !== 'function') return 0;
+    E.load(Store);
+    const s = E.load();
+    const today = App.today();
+    const seen = new Set();
+    for (const ev of (s.events || [])) {
+      if (!ev || !ev.wordId) continue;
+      if (ev.role === 'new') continue;
+      const ts = Number(ev.ts);
+      if (!ts) continue;
+      const d = new Date(ts);
+      if (isNaN(d.getTime())) continue;
+      const key = d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0');
+      if (key !== today) continue;
+      seen.add(ev.wordId);
+    }
+    return seen.size;
   },
 
   /** 词书页上的"引擎掌握度"卡：L0~L4 分布 + 定级信息 + 计数 */
@@ -746,8 +832,10 @@ const ViewVocab = {
     const E = this._engine();
     if (!E) return '';
     E.load(Store);
-    const st = E.stats();
+    const st = E.stats() || {};
     const s = E.load();
+    const counts0 = this._engineCounts();
+    const skippedKnown0 = counts0 ? counts0.skippedKnown : 0;
     const dist = [0, 0, 0, 0, 0];
     for (const k in s.words) dist[Math.min(4, s.words[k].level || 0)]++;
     const total = dist.reduce((a, b) => a + b, 0) || 1;
@@ -759,10 +847,11 @@ const ViewVocab = {
       <div class="row" style="align-items:baseline;gap:10px;flex-wrap:wrap">
         <b style="font-size:13.5px">引擎掌握度（L0→L4）</b>
         <span class="hint" style="margin:0">已学 ${st.learned} · 巩固 ${st.mastered} · 复习中 ${st.reviewing} · 难词 ${st.hard}</span>
+        ${skippedKnown0 ? `<span class="tag" title="词汇量测试整带跳过的词已计入顶部「已掌握」">测试跳过 ${skippedKnown0} 词 · 已计入掌握</span>` : ''}
         <span class="sp"></span>
         ${u.vocabEstimate ? `<span class="tag tag-pri">定级估算 ${u.vocabEstimate}</span>` : ''}
         ${u.bandPlacement != null ? `<span class="tag">起点第 ${u.bandPlacement + 1} 带</span>` : ''}
-        ${(u.skipBands || []).length ? `<span class="tag tag-ok">整带跳过 ${u.skipBands.length} 个</span>` : ''}
+        ${(u.skipBands || []).length ? `<span class="tag tag-ok" title="词汇量测试整带跳过 ${u.skipBands.length} 个词频带，相关词已计入"已掌握"">整带跳过 ${u.skipBands.length} 个频带</span>` : ''}
       </div>
       <div class="bar" style="display:flex;margin-top:9px">
         ${dist.map((n, i) => n ? `<i style="width:${n / total * 100}%;background:${colors[i]}" title="${labels[i]} ${n}"></i>` : '').join('')}
@@ -923,6 +1012,10 @@ const ViewVocab = {
       this.vocabRound = null;
       this.slots = this._arrangeSpell(pool).slice(0, Math.min(20, Store.d.settings.dailyNew))
         .map(w => ({ wordId: this._quiz() ? VocabQuiz.wordId(b, w) : w.w, senseId: 's0', wordRef: w, free: true }));
+      /* 【2026-10-26】拼写模式也要维护 queue（与 slots 一一对应）：
+       * 旧代码只建 slots，queue 还是上一个模式的词，“按时间/乱序”改的是 queue，
+       * 对当前拼写轮完全没作用。*/
+      this.queue = this.slots.map(sl => sl.wordRef);
       this._doneSlots = [];
       this._applyEngineQueue(this.slots);
     } else {
@@ -1133,7 +1226,7 @@ const ViewVocab = {
         <button class="btn btn-xs btn-gh" data-act="skip">跳过 →</button>
       </div>
       <div class="wcard-word">${esc(w.w)}</div>
-      <div class="wcard-ph">${esc(w.ph || '')}
+      <div class="wcard-ph">${esc(vocabPh(w))}
         <button class="btn btn-xs btn-gh wcard-say" data-act="say" title="朗读这个单词">
           <svg viewBox="0 0 24 24" class="ic ic-sm ic-fill">
             <path d="M4 9v6h3.5l5 4V5l-5 4H4z"/>
@@ -1176,7 +1269,7 @@ const ViewVocab = {
         <button class="btn btn-xs btn-gh" data-act="detail">词条详情</button>
       </div>
       <div class="wcard-word">${esc(w.w)}</div>
-      <div class="wcard-ph">${esc(w.ph || '')}
+      <div class="wcard-ph">${esc(vocabPh(w))}
         <button class="btn btn-xs btn-gh" data-act="say">🔊</button></div>
       <!-- 【2026-10-17 移除】这里原来显示 w.ex[0] 的单词首条例句。它和本题的目标义项没有对应
            关系（引擎按义项轮换出题，但例句是单词级的），词库数据里的例句顺序/含义也不总跟释义
@@ -1210,7 +1303,7 @@ const ViewVocab = {
       </div>
       <div style="text-align:center;padding:14px 0">
         <div class="hint">根据音标和中文释义拼写</div>
-        <div class="wcard-ph" style="font-size:20px;margin:14px 0">${esc(w.ph || '（暂无音标）')}</div>
+        <div class="wcard-ph" style="font-size:20px;margin:14px 0">${esc(vocabPh(w) || '（暂无音标）')}</div>
         <div class="wcard-cn" style="margin:0 0 12px">${esc(meanings.join('；') || '（暂无中文释义）')}</div>
         <button class="play-btn wcard-say" data-act="say" title="播放单词读音" aria-label="播放单词读音" style="margin:12px auto;display:flex">
           <svg viewBox="0 0 24 24" class="ic" style="width:26px;height:26px"><path d="M3 18v-6a9 9 0 0118 0v6"/><path d="M21 19a2 2 0 01-2 2h-1a2 2 0 01-2-2v-3a2 2 0 012-2h3zM3 19a2 2 0 002 2h1a2 2 0 002-2v-3a2 2 0 00-2-2H3z"/></svg>
@@ -1239,7 +1332,7 @@ const ViewVocab = {
         <div class="card-b wdetail">
           <div class="wdetail-head">
             <span class="w">${esc(w.w)}</span>
-            <span class="ph">${esc(w.ph || '')}</span>
+            <span class="ph">${esc(vocabPh(w))}</span>
             <button class="btn btn-xs btn-gh" data-act="say">🔊</button>
             ${Store.nbHas(w.w) ? '<span class="tag tag-ok">已在生词本</span>' :
         `<button class="btn btn-xs btn-gh" data-act="nb">+ 生词本</button>`}
@@ -1366,10 +1459,26 @@ const ViewVocab = {
         const order = t.dataset.order === 'random' ? 'random' : 'time';
         if (order === this.spellOrder) break;
         this.spellOrder = order;
-        const completed = this.queue.slice(0, this.qi);
-        const current = this.queue[this.qi] ? [this.queue[this.qi]] : [];
-        const remaining = this._arrangeSpell(this.queue.slice(this.qi + 1), order);
-        this.queue = this._dedupeQueue(completed.concat(current, remaining));
+        /* 拼写模式：真正重排"本轮剩余词位"（当前题不动），并让 queue 同步；
+         * 旧实现改的是其它模式遗留的 queue，按钮点了没有任何效果。*/
+        if (this.mode === 'spell' && Array.isArray(this.slots) && this.slots.length) {
+          const head = this.slots.slice(0, this.qi + 1);
+          const rest = this.slots.slice(this.qi + 1);
+          const ordered = this._arrangeSpell(rest.map(sl => sl.wordRef).filter(Boolean), order);
+          const rank = new Map(ordered.map((w, i) => [w.w, i]));
+          rest.sort((a, b) => {
+            const wa = a.wordRef && a.wordRef.w, wb = b.wordRef && b.wordRef.w;
+            return (rank.has(wa) ? rank.get(wa) : 999) - (rank.has(wb) ? rank.get(wb) : 999);
+          });
+          this.slots = head.concat(rest);
+          this.queue = this.slots.map(sl => sl.wordRef);
+          App.toast(order === 'random' ? '本轮剩余题目已打乱' : '本轮剩余题目已按最近学习时间排序', 'ok');
+        } else {
+          const completed = this.queue.slice(0, this.qi);
+          const current = this.queue[this.qi] ? [this.queue[this.qi]] : [];
+          const remaining = this._arrangeSpell(this.queue.slice(this.qi + 1), order);
+          this.queue = this._dedupeQueue(completed.concat(current, remaining));
+        }
         $$('[data-act="spellOrder"]').forEach(button => {
           button.className = `btn btn-xs ${button.dataset.order === order ? 'btn-pri' : 'btn-gh'}`;
         });
@@ -1817,4 +1926,25 @@ function aiDetailHTML(d) {
     ? '来源核验：当前显示的是本地词典或降级结果，未核验外部资源。'
     : '来源核验：以上为 AI 生成的语言分析；本应用未联网检索，具体真题年份、出处和外部资源尚未核验。请以可追溯的原卷或官方发布为准。'}</div>`;
 }
+/* ---------- 词汇页显示辅助（2026-10-26 用户反馈） ---------- */
+/**
+ * 音标显示：词书数据里的 ph 有时是空占位（destined 的 "/  /"），卡片上就只剩 "//"。
+ * 回退到内置词典音标；仍然没有则返回空串（由各调用点显示占位文案）。
+ */
+function vocabPh(w) {
+  const clean = s => String(s == null ? '' : s).replace(/[\s/]/g, '');
+  if (w && clean(w.ph)) return String(w.ph).trim();
+  try {
+    if (w && w.w && typeof Dict !== 'undefined' && Dict && typeof Dict.get === 'function') {
+      const d = Dict.get(w.w);
+      if (d && clean(d[0])) {
+        /* 词典音标不带 / /，且常用 ASCII 冒号/撇号代替 ː/ˈ（与阅读页同一套修正） */
+        const ipa = String(d[0]).trim().replace(/^\/+|\/+$/g, '').replace(/:/g, 'ː').replace(/'/g, 'ˈ');
+        return ipa ? '/' + ipa + '/' : '';
+      }
+    }
+  } catch (e) { /* 词典未加载：按没有音标处理 */ }
+  return '';
+}
+
 window.ViewVocab = ViewVocab;
