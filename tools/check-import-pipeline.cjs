@@ -23,10 +23,19 @@ function check(name, run) {
   try { run(); passed++; console.log('PASS ' + name); }
   catch (e) { failed++; console.log('FAIL ' + name + ': ' + (e && e.message)); }
 }
+function realCheck(name, run) {
+  if (!HAS_REAL) { console.log('SKIP ' + name + '（开源仓库不含 debug/ 真题夹具）'); return; }
+  check(name, run);
+}
 
-/* ---------- 真实源文本夹具：2024-06 六级第一/三套 PDF.js 抽取结果（与平板 App 抽取同一份） ---------- */
-const REAL_SET1 = fs.readFileSync(path.join(ROOT, 'debug/text-set1.txt'), 'utf8');
-const REAL_SET3SRC = fs.readFileSync(path.join(ROOT, 'debug/text-set3src.txt'), 'utf8');
+/* ---------- 真实源文本夹具：2024-06 六级第一/三套 PDF.js 抽取结果 ----------
+ * 这些是受版权保护的真题文本，不随开源仓库分发；debug/ 不在仓库里。
+ * 有夹具时跑完整真实文本回归；没有时跳过这几项（CI 走跳过路径）。*/
+const DEBUG_DIR = path.join(ROOT, 'debug');
+const HAS_REAL = fs.existsSync(path.join(DEBUG_DIR, 'text-set1.txt')) &&
+  fs.existsSync(path.join(DEBUG_DIR, 'text-set3src.txt'));
+const REAL_SET1 = HAS_REAL ? fs.readFileSync(path.join(DEBUG_DIR, 'text-set1.txt'), 'utf8') : '';
+const REAL_SET3SRC = HAS_REAL ? fs.readFileSync(path.join(DEBUG_DIR, 'text-set3src.txt'), 'utf8') : '';
 /** 找 "53." 这类题号行在原文里的偏移（行首数字 + 分隔符，避免把 "53" 行内数字当题号） */
 function questionLineOffset(text, n) {
   const num = String(n);
@@ -400,7 +409,7 @@ function makePages(text) {
   });
 
   /* ---------- 6. 真实源文本夹具回归（2024-06 六级第三套 / 第一套 PDF.js 抽取文本） ---------- */
-  check('真实夹具 set3：Passage Two 的 Q51-Q55 同批，Q55 四选项可达并可回填', () => {
+  realCheck('真实夹具 set3：Passage Two 的 Q51-Q55 同批，Q55 四选项可达并可回填', () => {
     const batches = plain(IP.buildBatches(REAL_SET3SRC, { maxChars: 4500 }));
     const batchOf = {};
     for (const n of [51, 52, 53, 54, 55]) {
@@ -442,7 +451,7 @@ function makePages(text) {
     assert.equal(again.ok, true, '回填后应通过：' + JSON.stringify(again.errors));
   });
 
-  check('回归加固 set1：批次切点不落在一道题的题干与选项之间（Q53 的 C/D 曾整段落到下一批）', () => {
+  realCheck('回归加固 set1：批次切点不落在一道题的题干与选项之间（Q53 的 C/D 曾整段落到下一批）', () => {
     const batches = plain(IP.buildBatches(REAL_SET1, { maxChars: 4500 }));
     batches.forEach(b => {
       assert.ok(!/^[A-D]\s*[.)、）]/.test(b.text.trim()), '第 ' + b.index + ' 批从选项行中间开始：' + JSON.stringify(b.text.trim().slice(0, 30)));
@@ -550,7 +559,7 @@ function makePages(text) {
 
 
   /* ---------- 7.5 模块归属：Unicode 罗马数字 Part Ⅲ / Section 继承 ---------- */
-  check('buildBatches：Unicode 罗马数字 Part Ⅲ 能识别，阅读批次不会被错标成 listening（真实 set1 文本）', () => {
+  realCheck('buildBatches：Unicode 罗马数字 Part Ⅲ 能识别，阅读批次不会被错标成 listening（真实 set1 文本）', () => {
     const batches = plain(IP.buildBatches(REAL_SET1, { maxChars: 4500 }));
     for (const b of batches) {
       const head = b.text.trim();
