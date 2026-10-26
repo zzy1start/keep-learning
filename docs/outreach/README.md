@@ -27,7 +27,7 @@
 - [x] 2026-10-25 用户用 163 邮箱发送
 - [x] 2026-10-25 22:09 作者回复同意按 CC BY 4.0 授权
 - [x] 归档截图证据到 docs/outreach/
-- [ ] 把 CC BY 4.0 与 KyleBing BSD-3 声明补进 NOTICE + LICENSES
+- [x] 把 CC BY 4.0 与 KyleBing BSD-3 声明补进 NOTICE + LICENSES（2026-10-26）
 
 ## 备选方案（已取消：2026-10-25 作者授权 CC BY 4.0）
 

@@ -4,6 +4,7 @@
   "private": true,
   "description": "Keep Learning — Windows 和 Android 平板离线英语学习应用（iOS/macOS/手机暂不支持）",
   "license": "MIT",
+  "author": "zzy1start",
   "repository": {
     "type": "git",
     "url": "https://github.com/zzy1start/keep-learning.git"

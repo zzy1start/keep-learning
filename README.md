@@ -21,6 +21,11 @@
 > **当前只发布 GitHub，不发布 Gitee。**
 > Android APK 只含 `arm64-v8a`，面向平板；Android 手机、iPad、macOS 均在制作中，**暂无可用构建**。
 
+## 作者 / 维护者
+
+- 维护者：**zzy1start**（GitHub）
+- 本项目为个人开源项目，不代表任何学校或机构的官方立场。
+
 ---
 
 ## 快速开始
