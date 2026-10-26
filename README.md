@@ -13,13 +13,13 @@
 |---|---|---|
 | **Windows 10 / 11** | ✅ 官方支持 | Chrome / Edge + 本地 `serve.js`；桌面快捷方式 |
 | **Android 平板（arm64）** | ✅ 官方支持 | APK（lite，不含音频），Android 6.0+（minSdk 23），横屏/大屏适配 |
-| iPad / iPhone | ❌ 暂不支持 | 没有 iOS 工程与签名，不能安装 APK |
-| macOS | ❌ 暂不支持 | 未打包、未测试 |
-| Android 手机 | ❌ 暂未适配 | APK 也许能安装，但手机布局与交互未完成，不提供支持 |
+| iPad / iPhone | 🚧 制作中 | iOS 原生版在制作中；暂无构建/安装包，暂不提供支持 |
+| macOS | 🚧 制作中 | 桌面原生版在制作中；暂无构建，暂不提供支持 |
+| Android 手机 | 🚧 制作中 | 手机布局/交互适配在制作中；暂不提供支持 |
 | Linux / 其他 | ❌ 暂不支持 | 未测试 |
 
 > **当前只发布 GitHub，不发布 Gitee。**
-> Android APK 只含 `arm64-v8a`，面向平板；Android 手机、iPad、macOS 均未完成适配。
+> Android APK 只含 `arm64-v8a`，面向平板；Android 手机、iPad、macOS 均在制作中，**暂无可用构建**。
 
 ---
 
@@ -609,7 +609,8 @@ english-app/
 
 - **Windows 10/11 + Chrome / Edge**（推荐）：Web Speech 音色最全；桌面 Edge 还带 Azure 云端神经音色。
 - **Android 平板**：APK 内使用系统 TTS；第一次发声前需要点一下页面（浏览器/WebView 的自动播放限制）。
-- **iPad / iPhone、macOS、Android 手机、Linux**：未适配、未测试，不提供支持。
+- **iPad / iPhone、macOS、Android 手机**：制作中，暂无构建，不提供支持。
+- **Linux / 其他**：未支持、未测试。
 - 其他桌面浏览器（Firefox 等）可能能打开网页，但不在支持范围内。
 
 > Android 平板如果没有英语系统音色：设置 → 系统 → 语言和输入法 → 文字转语音输出 → 首选引擎 → 安装语音数据（English）。
@@ -628,7 +629,7 @@ english-app/
 先看「设置 → 🩺 发音环境诊断」里的英语音色数量：
 - 0 个 = 系统没装英语 TTS。Windows 在「设置 → 时间和语言 → 语音」安装；Android 平板在系统 TTS 设置里安装 English 语音数据。网页/APK 不能替你下载系统音色。
 - 有音色但没声 = 检查媒体音量/静音，以及是否先点过页面（浏览器/WebView 要求用户手势后才允许发声）。
-- **iPad / iPhone、macOS、Android 手机、Linux 不在支持范围，不提供排查。**
+- **iPad / iPhone、macOS、Android 手机在制作中，Linux 未支持；均暂不提供排查。**
 
 **Q：手写识别无效？**
 需要 AI 视觉模型（如 gpt-4o / qwen-vl-max）。且识别结果会与文字稿合并，不是实时 OCR。
@@ -2616,7 +2617,7 @@ node tools/check-all.cjs           → 41 套 / 39 套退出码 0（未过的仍
 ## 多端访问（历史记录；正式支持见顶部矩阵）
 
 > ⚠️ 下面是早期开发记录，**不代表正式支持**。
-> 官方只支持 **Windows 10/11** 和 **Android 平板 APK**；Android 手机、iPad/iPhone、macOS 均未适配。
+> 官方只支持 **Windows 10/11** 和 **Android 平板 APK**；Android 手机、iPad/iPhone、macOS 均在制作中，暂无构建。
 
 ### 局域网访问（平板/其他设备）
 

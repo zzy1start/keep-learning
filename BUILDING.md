@@ -11,9 +11,9 @@
 |---|---|---|
 | Windows 10/11 | ✅ 支持 | Chrome/Edge + `serve.js`；桌面快捷方式 |
 | Android 平板（arm64） | ✅ 支持 | lite APK，Android 6.0+（minSdk 23），平板 UI |
-| iPad / iPhone | ❌ 不支持 | 没有 iOS 工程/签名 |
-| macOS | ❌ 不支持 | 未打包、未测试 |
-| Android 手机 | ❌ 未适配 | 手机布局/交互未完成 |
+| iPad / iPhone | 🚧 制作中 | iOS 原生版在制作中；暂无构建 |
+| macOS | 🚧 制作中 | 桌面原生版在制作中；暂无构建 |
+| Android 手机 | 🚧 制作中 | 手机适配在制作中；暂无支持 |
 | Linux / 其他 | ❌ 不支持 | 未测试 |
 
 > 当前只发布 GitHub，不发布 Gitee。
@@ -27,7 +27,7 @@
 | JDK | 21（Capacitor 7 / Android Gradle 要求） |
 | Android SDK | compileSdk 35；设置 `ANDROID_HOME`，或让 `tools/init-android.cjs` 写入 `android/local.properties` |
 | Python 3 + edge-tts + ffmpeg | 仅生成离线音频包时需要，见 [docs/36-离线音频包生成.md](docs/36-离线音频包生成.md) |
-| macOS + Xcode | ❌ 不支持；仓库不包含 iOS 工程，也不提供 iOS 构建 |
+| macOS + Xcode | 🚧 iOS 制作中；仓库暂不包含 iOS 工程 |
 
 ## 1. 安装依赖
 
@@ -91,18 +91,21 @@ node serve.js                    # 默认 http://127.0.0.1:8777
 见 [docs/36-离线音频包生成.md](docs/36-离线音频包生成.md)。Windows 可直接双击 `生成音频包.bat`。
 生成的 MP3 **不要提交 git、不要上传公开 Release**。
 
-## 7. 未支持平台
+## 7. 制作中 / 未支持平台
 
-- **iOS / iPad**：没有 iOS 工程、没有签名流程，也没有移植 TTS/AudioPack/LocalTts/PDF/Print 插件。
-- **macOS**：未打包、未测试。
-- **Android 手机**：APK 可能能装，但手机布局/交互未完成，不提供支持。
-- **Linux / 其他**：未测试。
+**制作中（暂无构建，不要按可用版本宣传）：**
 
-如果以后要做 iOS，需要 macOS + Xcode + Apple 开发者账号，并重写 5 个原生插件；见 README 讨论记录。
+- **iOS / iPad**：需要 macOS + Xcode + Apple 开发者账号，并移植 TTS/AudioPack/LocalTts/PDF/Print 插件；暂无 iOS 工程。
+- **macOS**：桌面原生版在制作中；暂无打包。
+- **Android 手机**：手机布局/交互适配在制作中；APK 可能能装但不保证体验。
+
+**未支持：**
+
+- **Linux / 其他**：未测试、不提供构建。
 
 ## 发布
 
 - 官方 Release 使用 **lite APK**（不含音频）；签名证书指纹见 README「官方渠道与 APK 签名校验」。
 - **只发布 GitHub**（不发布 Gitee）。
 - GitHub Actions：`ci.yml` 跑自检 + lite Web 构建；`release-lite-apk.yml` 在打 tag 时构建 **CI debug 签名** APK（文件名含 `CI-debug`，仅供测试）；官方包由维护者用正式 keystore 本地构建。
-- 平台限制：只构建 **Android 平板 arm64** APK；Windows 走浏览器/源码；iOS/iPad、macOS、Android 手机不在构建范围内。
+- 平台限制：只构建 **Android 平板 arm64** APK；Windows 走浏览器/源码；iOS/iPad、macOS、Android 手机在制作中，暂无构建。

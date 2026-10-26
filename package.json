@@ -2,7 +2,7 @@
   "name": "keep-learning-tablet",
   "version": "1.0.0",
   "private": true,
-  "description": "Keep Learning — offline English study workspace (Windows + Android tablet)",
+  "description": "Keep Learning — Windows 和 Android 平板离线英语学习应用（iOS/macOS/手机暂不支持）",
   "license": "MIT",
   "repository": {
     "type": "git",
