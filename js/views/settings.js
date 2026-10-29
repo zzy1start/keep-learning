@@ -804,7 +804,17 @@ const ViewSettings = {
               if (!j.settings) throw new Error('格式不正确');
               Store.d = Object.assign(Store.def(), j);
               Store.d.settings = Object.assign(Store.def().settings, j.settings);
-              Store.flush();
+              /* 【P2 修复】恢复后必须确认真的写进 localStorage 才提示成功：
+               * 存储满时旧代码 flush 失败仍弹「导入成功」，用户会误以为恢复完成。
+               * 同时重置词库引擎内存缓存，避免旧 _s 在下次 save 时覆盖刚恢复的数据。*/
+              const ok = Store.flush();
+              if (!ok) { App.toast('导入失败：本机存储空间不足，请先清理数据', 'err'); return; }
+              try {
+                if (typeof VocabEngine !== 'undefined') {
+                  VocabEngine.reset();
+                  if (VocabEngine.pruneEmptyStates) VocabEngine.pruneEmptyStates({ store: Store });
+                }
+              } catch (e) {}
               try { if (typeof Dict !== 'undefined' && Dict.mergeImportedContent) Dict.mergeImportedContent(); } catch (e) {}
               App.applyTheme(Store.d.settings.theme);
               this.render($('#view'));
@@ -827,6 +837,8 @@ const ViewSettings = {
             try {
               const j = JSON.parse(rd.result);
               const n = Store.importProgress(j);
+              /* 【P2 修复】importProgress 内部 flush 失败时只弹配额提示，这里要如实报失败 */
+              if (Store.lastFlushOk === false) { App.toast('导入失败：本机存储空间不足，请先清理数据', 'err'); return; }
               try { if (typeof Dict !== 'undefined' && Dict.mergeImportedContent) Dict.mergeImportedContent(); } catch (e) {}
               this.render($('#view'));
               App.toast(n ? '已导入学习进度（本机设置未变）' : '备份里没有可导入的进度', n ? 'ok' : '');

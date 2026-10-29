@@ -29,7 +29,17 @@
   const PLACEHOLDER_RE = /^(?:question\s*)?\d{1,3}\s*[.、:：)）]?$/i;
   const DIRECTIONS_RE = /^(?:questions?\s*\d+\s*(?:to|[-–—~]|and)\s*\d+\s*(?:are|is)\s+based\s+on|directions?\b|section\s+[abc]\b|part\s+[ivx]+\b)/i;
   const CN_PLACEHOLDER_RE = /(?:卷面未印题干|只在录音中播报|本题题干未印|无题干|题干暂缺)/;
-  const SPEAKER_PREFIX_RE = /^\s*(?:[MWNOQ]|narrator|speaker\s*\d+|man|woman|q)\s*[:：]\s*/i;
+  /* 说话人前缀：兼容联网原文的「轮次号 + 说话人」写法（1M: / 2W： / 1. Woman: / W3:）。
+   * 【2026-10-29】再兼容网页把说话人做成徽标的写法「*M*: / [W]: / (M):」：
+   * 这类标记剥不掉时会被当成英文单词（"M"），让整行对话混过「≥3 个英文词」的题干门槛，
+   * 用户报的假题干「*M*:Thatsoundsamazing.Doyouhavetorelocate?」就是这么来的。
+   * 只用于**剥离标记**，不改写原文；行首数字后面没有说话人标记的（如 "1.5 million"）不会匹配。 */
+  const SPEAKER_PREFIX_RE = /^\s*(?:\d{1,3}\s*[.、)）\]】:：\-–—]?\s*)?[*\[(（【]?\s*(?:[MWNOQ]|narrator|speaker\s*\d{1,2}|man|woman|male|female)\s*(?:\d{1,2})?\s*[*\])）】]?\s*[:：]\s*/i;
+  /* 题干绝不长这样：行首是说话人/轮次标记（原文里的对白行），或整行是多句对话。 */
+  const LEAKED_SPEAKER_RE = /^\s*[*\[(（【]?\s*(?:\d{1,3}\s*)?[MWNOQ]\s*[*\])）】]?\s*[:：]/;
+  /* 口播题干一定是个问句，且以疑问词/介词短语开头；这只是"顺序兜底"和"裸题号"分支的门槛，
+   * 带 "Question 5" 明确标签的不受此限。 */
+  const STEM_LEAD_RE = /^(?:what|why|how|where|when|who|whom|whose|which|according\s+to|in\s+what\s+way|for\s+what|to\s+what|on\s+what)\b/i;
   const MIN_ARTICLE = 600;
   const MAX_STEM_LEN = 400;
 
@@ -58,6 +68,16 @@
   function wordCount(text) {
     const m = String(text == null ? '' : text).match(/[A-Za-z][A-Za-z'’-]*/g);
     return m ? m.length : 0;
+  }
+
+  /** 一整段对白/多句文本：句末标点后还跟着大写开头的句子。
+   *  真题干是一句问句（"Why did John leave the sport at just 25?"），
+   *  不会出现 "That sounds amazing. Do you have to relocate?" 这种整行对白。 */
+  function looksLikeDialogue(text) {
+    const s = String(text == null ? '' : text).trim();
+    if (!s) return false;
+    if (/\?[^?]*\?/.test(s)) return true;                 // 一行里两个问句
+    return /[.!?]["'”’]?\s+["'“‘]?[A-Z]/.test(s);
   }
 
   function stripSpeaker(label) {
@@ -106,12 +126,18 @@
     return out;
   }
 
-  /** 题干“看起来像真题干”：至少 3 个英文词、不是 Directions/题号、不是中文。 */
+  /** 题干“看起来像真题干”：一句英文问句、至少 3 个英文词、不是 Directions/题号/中文。
+   *  【2026-10-29】新增两条拦截（用户报的假题干就卡在这里）：
+   *   ① 行首说话人/轮次标记（*M*: / M: / 1M:）——那是原文对白，不是卷面题干；
+   *   ② 多句文本——提取时抓到的是整行对白，不是一句题。
+   *  宁可少补一题（页面会如实显示仍缺），也不能把对白当题干写进卷子。*/
   function stemLooksReal(text) {
     const raw = String(text == null ? '' : text).replace(/\s+/g, ' ').trim();
     if (!raw || raw.length > MAX_STEM_LEN) return false;
+    if (LEAKED_SPEAKER_RE.test(raw)) return false;
     if (PLACEHOLDER_RE.test(raw) || DIRECTIONS_RE.test(raw) || CN_PLACEHOLDER_RE.test(raw)) return false;
     if (/^to\s+\d{1,2}\b/i.test(raw) || /\bbased\s+on\b/i.test(raw) && wordCount(raw) < 6) return false;
+    if (looksLikeDialogue(raw)) return false;
     return wordCount(raw) >= 3;
   }
 
@@ -250,6 +276,15 @@
     const lines = (Array.isArray(scriptLines) ? scriptLines : []).map(lineTextOf);
     const stems = {};
     const used = new Set();
+    /* 【2026-10-29】同一句原文只能当一道题的题干：
+     * 候选正文里同一行对白可能出现两遍（正文 + 解析引用），旧实现会把它分别塞给 Q1、Q2，
+     * 页面上两题题干一模一样（用户截图就是这么来的）。这里按归一化文本去重，
+     * 并且不和卷面上已有的题干重复。*/
+    const seen = new Set();
+    const existing = new Set();
+    map.qs.forEach(function (q) {
+      if (!stemIsPlaceholder(q)) existing.add(matchKey(q.q));
+    });
 
     function assign(number, text) {
       let idx = -1;
@@ -260,8 +295,13 @@
         idx = number - 1;
       }
       if (idx < 0 || idx >= map.expectedCount || used.has(idx)) return false;
-      if (!stemLooksReal(text)) return false;
-      stems[idx] = text.trim();
+      /* 口播原文里的题干常带「3M:/2W: / *M*:」说话人标记：只用于分角色，不能写进题干（否则会被朗读）。*/
+      const clean = stripSpeaker(String(text == null ? '' : text)).replace(/\s+/g, ' ').trim();
+      if (!stemLooksReal(clean)) return false;
+      const key = matchKey(clean);
+      if (!key || seen.has(key) || existing.has(key)) return false;
+      stems[idx] = clean;
+      seen.add(key);
       used.add(idx);
       return true;
     }
@@ -290,27 +330,34 @@
           consumed = j - i;
           if (parts.join(' ').length > 160) break;
         }
-        if (parts.length && assign(Number(bare[1]), parts.join(' '))) {
-          i += Math.max(1, consumed);
+        /* 裸题号（只有 "5."）本身不证明下一行是题干：原文页里题号后面也可能跟对白。
+         * 只有以疑问词/According to 开头、且是单句时才认。 */
+        if (parts.length && STEM_LEAD_RE.test(stripSpeaker(parts[0]))) {
+          if (assign(Number(bare[1]), parts.join(' '))) i += Math.max(1, consumed);
         }
         continue;
       }
       let line = rawLine;
       line = stripSpeaker(line);
       if (!line) continue;
-      /* 1) "Question 5 ..." / "Q5 ..." */
+      /* 1) "Question 5 ..." / "Q5 ..." —— 有明确标签，文本只要像题干即可 */
       let m = /^(?:question|q)\s*(\d{1,3})\s*[.、:：)）\-—]?\s*(.+)$/i.exec(line);
+      const labeled = !!m;
       if (!m) {
-        /* 2) "5. ..." / "5) ..." */
+        /* 2) "5. ..." / "5) ..." —— 裸题号不可信，必须是一个真正的问句开头 */
         m = /^(\d{1,3})\s*[.、:：)）]\s*(.+)$/.exec(line);
       }
       if (m) {
         const text = String(m[2] || '').trim();
-        if (!/^(?:to\s+\d|are based on|is based on)\b/i.test(text)) assign(Number(m[1]), text);
+        if (!/^(?:to\s+\d|are based on|is based on)\b/i.test(text)) {
+          if (labeled || STEM_LEAD_RE.test(text)) assign(Number(m[1]), text);
+        }
         continue;
       }
-      /* 3) 单独一行问句且没有题号：按出现顺序补给还没题的 */
-      if (/\?\s*$/.test(line) && wordCount(line) >= 3 && !DIRECTIONS_RE.test(line)) {
+      /* 3) 单独一行问句且没有题号：按出现顺序补给还没题的。
+       * 【2026-10-29】这里最容易把原文对白当题干（"Do you have to relocate?"），
+       * 所以只认疑问词/According to 开头的单句。 */
+      if (/\?\s*$/.test(line) && STEM_LEAD_RE.test(line) && wordCount(line) >= 3 && !DIRECTIONS_RE.test(line)) {
         while (sequential < map.expectedCount && used.has(sequential)) sequential++;
         if (sequential < map.expectedCount && !stemIsPlaceholder(map.qs[sequential])) {
           sequential++;
@@ -461,7 +508,8 @@
     if (/(?:tapescript|transcript|听力原文|录音原文|听力材料)/i.test(raw)) { score++; hits.push('label'); }
     const qMarks = (raw.match(/\bquestions?\s*\d{1,3}\b/gi) || []).length;
     if (qMarks >= 1) { score++; hits.push('questions:' + qMarks); }
-    const speakerMarks = (raw.match(/(?:^|\n)\s*(?:[WMN]|narrator|speaker\s*\d+)\s*[:：]/gim) || []).length;
+    /* 说话人标记也认「1M: / 2W:」这种带轮次号的写法（lazynote 等来源就是段号 + M/W） */
+    const speakerMarks = (raw.match(/(?:^|\n)\s*(?:\d{1,3}\s*)?(?:[WMN]|narrator|speaker\s*\d+)\s*[:：]/gim) || []).length;
     if (speakerMarks >= 2) { score++; hits.push('speakers:' + speakerMarks); }
     if (/(?:conversation|dialogue|passage|lecture|speech|report|news|interview)/i.test(raw)) { score++; hits.push('genre'); }
     const nums = questionNumbers(paper).filter(n => Number.isFinite(n));
@@ -518,7 +566,8 @@
       if (oneBased) i -= 1;
       if (i < 0 || i >= qs.length) { rejected++; return; }
       if (!stemIsPlaceholder(qs[i])) { rejected++; return; }
-      const text = String((item && (item.stem || item.q || item.text)) || '').trim();
+      /* 同样剥掉「1M:/3W:」这类说话人标记，避免题干被朗读时念出轮次号 */
+      const text = stripSpeaker(String((item && (item.stem || item.q || item.text)) || '')).replace(/\s+/g, ' ').trim();
       if (!stemLooksReal(text)) { rejected++; return; }
       if (options.requireOptions !== false) {
         const given = Array.isArray(item && (item.options || item.opts)) ? (item.options || item.opts) : [];
@@ -616,6 +665,64 @@
       }
     });
     return changed;
+  }
+
+  /* ---------------- 旧数据清洗 ---------------- */
+
+  /** 明显是"原文对白被当成题干"的泄漏文本：行首说话人标记，或一行里两个问句。 */
+  function isLeakedStem(text) {
+    const s = String(text == null ? '' : text).trim();
+    if (!s) return false;
+    if (LEAKED_SPEAKER_RE.test(s)) return true;
+    return /\?[^?]*\?/.test(s);
+  }
+
+  /**
+   * 清理 2026-10-29 之前版本写坏的题干（旧版拿未核验的联网正文抽题干）。
+   * 只清「行首 *M*:/M:/1M: 说话人标记」或「一行两个问句」的泄漏；
+   * 真实卷面题干（What/Why/How... 单句）不会被误伤（内置 41 道真题干扫描 0 误伤）。
+   * - 清 q.q → 页面按"缺题干"显示，并重新触发自动补全（补全逻辑已修复）；
+   * - 同时清掉 patch 里的同名条目，避免下次启动又被写回来；
+   * - 删掉 stemSource/stemFromSet，避免状态条继续声称"来源：原文口播"。
+   * @returns {number} 清掉的题干条数
+   */
+  function sanitizeStems(papers, patches) {
+    let cleared = 0;
+    const patchObj = (patches && typeof patches === 'object') ? patches : null;
+    (Array.isArray(papers) ? papers : []).forEach(function (paper) {
+      if (!paper) return;
+      let touched = false;
+      questionsOf(paper).forEach(function (q) {
+        const raw = String((q && q.q) || '').trim();
+        if (!raw || !isLeakedStem(raw)) return;
+        q.q = '';
+        delete q.stemMissing;
+        touched = true;
+        cleared++;
+      });
+      if (!touched) return;
+      delete paper.stemSource;
+      delete paper.stemFromSet;
+      if (patchObj) {
+        const id = String(paper.id || '');
+        const keys = [id, id.replace(/-shared-\d+$/, '')];
+        keys.forEach(function (key) {
+          const p = key && patchObj[key];
+          if (!p || !p.stems || typeof p.stems !== 'object') return;
+          Object.keys(p.stems).forEach(function (k) {
+            if (isLeakedStem(p.stems[k])) delete p.stems[k];
+          });
+          if (!Object.keys(p.stems).length) {
+            /* 题干全被清掉：来源标记也必须一起清，否则下次 applyPatches 只补原文时
+             * 会把旧的 "stemSource:transcript" 又写回篇目，页面继续声称“来源：原文口播”。*/
+            delete p.stems;
+            delete p.stemSource;
+            delete p.stemFromSet;
+          }
+        });
+      }
+    });
+    return cleared;
   }
 
   /* ---------------- deps ---------------- */
@@ -774,6 +881,7 @@
     const patch = {};
     let changed = false;
     let aiSourceText = '';   // 本次检索到的最像该篇的正文窗口（供 AI 与逐字核验共用）
+    let verifiedSource = ''; // 只有「结构化门槛 + AI 逐字证据 + 切分校验」全过的正文才能当原文/题干来源
     try {
       const hadScript = scriptLinesOf(paper).length > 0;
       /* 1) 同套共享：不花钱、立即生效，优先做 */
@@ -805,6 +913,31 @@
         const meta = metaOf(paper);
         let collected = null;
         try {
+          /* 2a) 先直连已知原文站（按 年-月-套号 拼 URL，2026-10-29）。
+           * 实网：懒笔记的 2025-06 第 1 套原文页仍在，但四个搜索引擎当期分别被
+           * 广告页/无关 docx/登录墙占位，纯搜索召回不到 → 原文补不进来。
+           * 直连页同样必须过 verifyTranscriptMatch 门槛，过不了再回退搜索。*/
+          if (typeof deps.webSearch.collectDirectTranscript === 'function') {
+            try {
+              progress('正在直连原文站…');
+              const direct = await withTimeout(deps.webSearch.collectDirectTranscript(meta, {
+                timeoutMs: deps.timeoutMs, maxUrls: 4,
+                requireMatch: /(?:听力|六级|四级|CET|tapescript|transcript|listening|questions?\s*\d)/i,
+              }), 45000, '直连原文站超时');
+              if (direct && String(direct.text || '').trim()) {
+                const directVerdict = verifyTranscriptMatch(paper, direct.text);
+                if (directVerdict.ok) {
+                  collected = direct;
+                } else {
+                  report.errors.push('verify: 直连原文页不像该套 Tapescript（' + directVerdict.hits.join(',') + '）');
+                }
+              }
+            } catch (e) {
+              report.errors.push('web: 直连原文站失败（' + shortError(e) + '）');
+            }
+          }
+          /* 2b) 直连没拿到可用正文 → 走搜索引擎多引擎回退 */
+          if (!collected) {
           /* 中文环境 Bing 对长尾真题词召回差，按 百度 → 搜狗 → 360 → Bing 回退；
            * WebSearch 默认只跑 Bing，这里显式给多引擎列表（单引擎失败才换下一个）。*/
           /* 实网结论（2026-10-26）：宽搜索词下 Bing 反而最准（懒笔记/新东方整页原文），
@@ -830,6 +963,7 @@
               sources: list.map(r => ({ url: r && r.url, len: String(r && r.text || '').length })),
               errors: (found && found.errors) || [],
             };
+          }
           }
           if (!collected || !String(collected.text || '').trim()) {
             report.errors.push('web: 没有检索到可用网页');
@@ -865,6 +999,8 @@
                 report.scriptVerdict = 'ai-verified';
                 report.status = 'partial';
                 changed = true;
+                /* 这份正文已核验为本篇 Tapescript，是后面抽题干的唯一联网依据 */
+                verifiedSource = aiSourceText || pageText;
                 progress('已补入听力原文（' + script.length + ' 句，来源 ' + (paper.scriptUrl || '网页') + '）');
               } else if (out && out.match && !scriptOk.ok) {
                 report.errors.push('verify: AI 切分出的原文与候选正文对不上（' + scriptOk.matched + '/' + scriptOk.total + '）');
@@ -886,8 +1022,13 @@
       if (!stemsComplete(paper)) {
         const scriptText = scriptLinesOf(paper).join('\n');
         /* 题干优先从“检索到的整页正文”里找：AI 切分 script 时按设计去掉了题号说明与题干，
-         * 只拿 script 会永远找不到口播题干。没有联网正文时才退回 script。*/
-        const stemSource = aiSourceText || scriptText;
+         * 只拿 script 会永远找不到口播题干。没有联网正文时才退回 script。
+         * 【2026-10-29 关键修复】只能用**已核验**的联网正文（verifiedSource）：
+         * 原文核验失败时 aiSourceText 仍然拿着一份未核验的候选页，旧实现拿它抽题干，
+         * 于是把原文对白 "*M*:Thatsoundsamazing.Doyouhavetorelocate?" 写成"原文口播题干"，
+         * 页面还显示"题干已齐全（来源：原文口播）"——同一份内容却既没原文又成了题干。
+         * 未核验的正文一律不参与题干抽取（宁缺勿造）。*/
+        const stemSource = verifiedSource || scriptText;
         if (stemSource) {
           progress('正在从原文提取题干…');
           const local = extractStemsFromScript(paper, stemSource.split('\n'));
@@ -1087,6 +1228,8 @@
     readPatches: readPatches,
     writePatch: writePatch,
     applyPatches: applyPatches,
+    sanitizeStems: sanitizeStems,
+    isLeakedStem: isLeakedStem,
     // 编排
     run: run,
     afterImport: afterImport,

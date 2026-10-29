@@ -182,8 +182,13 @@ const ViewRead = {
         : (this.mode === 'exam' ? '做题模式：提交后显示答案与解析' : '修改模式：可作答并查看解析');
     this.cur = p;
     this.list = list;
-    // 用this.timeLimit（用户可能改过），没有才用文章自带的
-    this.left = (this.timeLimit || p.timeLimit) * 60;
+    /* 【P2 修复 2026-10-29】重渲染（提交、切模式、作答刷新等）不能把正在运行/暂停的
+     * 倒计时重置回满时长；只有 idle/finished 或切换了篇目时才重新取限时。*/
+    if (this._timerPassageId !== p.id
+      || (this.rState !== 'running' && this.rState !== 'paused')) {
+      this.left = (this.timeLimit || p.timeLimit) * 60;
+    }
+    this._timerPassageId = p.id;
     const pickerMeta = this._pickerMeta();
     root.innerHTML = `
     <div class="phead">
@@ -1186,6 +1191,15 @@ const ViewRead = {
       if (t.closest('#anBox')) return;
       const a = t.dataset.act;
       if (a === 'submitRead') {
+        /* 【P2 修复】有未作答题目时先确认，避免误点直接交卷（与切修改模式的确认保持一致） */
+        if (!this.submitted) {
+          const qs = this._questions(this.cur);
+          const answered = qs.filter((q, i) => this.answers[i] != null).length;
+          if (answered < qs.length) {
+            App.confirm('还有 ' + (qs.length - answered) + ' 题未作答，确定提交并查看解析吗？', () => { this._submitAndRender(); });
+            return;
+          }
+        }
         await this._submitAndRender();
       } else if (a === 'resetRead') { this.answers = {}; this.submitted = false; this._shell($('#view')); }
       else if (a === 'showAns') {
@@ -2305,7 +2319,7 @@ const ViewRead = {
     this.answers = {}; this.submitted = false; this.marks = {}; this.selected = null; this.hist = [];
       this._paraCn = {}; this._paraOpen = new Set();   // 切篇清空段落翻译
     this._shell($('#view'));
-    App.toast('已生成新文章', 'ok');
+    App.toast(AI.ready ? '已生成新文章' : '未配置 AI，已用本地模板生成文章', AI.ready ? 'ok' : '');
   },
 
   /** 删除自己导入的文章（内置题不可删） */

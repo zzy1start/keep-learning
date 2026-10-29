@@ -73,7 +73,8 @@ App.modal = (title, bodyHTML, onMount) => {
 };
 App.closeModal = () => $('#modalMask').classList.remove('on');
 App.confirm = (msg, onYes) => {
-  App.modal('确认', `<p style="line-height:1.8">${esc(msg)}</p>
+  /* white-space:pre-line：确认文案里的换行不再被 HTML 折叠成空格（P2 修复） */
+  App.modal('确认', `<p style="line-height:1.8;white-space:pre-line">${esc(msg)}</p>
     <div class="row" style="margin-top:18px;justify-content:flex-end">
       <button class="btn btn-gh" data-x>取消</button>
       <button class="btn btn-dan" id="cfmYes">确定</button></div>`,

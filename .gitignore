@@ -27,6 +27,7 @@ work/
 
 # 打包产物
 *.apk
+*.apk.sha256
 *.aab
 *.ap_
 *.idsig

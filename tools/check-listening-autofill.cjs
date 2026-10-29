@@ -139,6 +139,13 @@ function makeWebSearch(config) {
   const ws = {
     collectCalls: [],
     searchCalls: [],
+    directCalls: [],
+    collectDirectTranscript: function (meta, opts) {
+      ws.directCalls.push({ meta: meta, opts: opts });
+      if (c.directThrows) return Promise.reject(c.directThrows);
+      return Promise.resolve(typeof c.directResult === 'function'
+        ? c.directResult(meta, opts) : (c.directResult || { text: '', sources: [], blocks: [], errors: [], tried: 0 }));
+    },
     collectTranscriptText: function (meta, opts) {
       ws.collectCalls.push({ meta: meta, opts: opts });
       if (c.collectThrows) return Promise.reject(c.collectThrows);
@@ -186,7 +193,7 @@ const TRANSCRIPT_SCRIPT = TRANSCRIPT_LINES.slice(3, 9);
       'paperAudioKey', 'findStemDonors', 'copyStemsFromDonor', 'extractStemsFromScript',
       'verifyStemInScript', 'buildTranscriptQueries', 'buildStemQueries',
       'verifyTranscriptMatch', 'applyStemJson', 'readPatches', 'writePatch', 'applyPatches',
-      'run', 'afterImport',
+      'sanitizeStems', 'run', 'afterImport',
     ];
     names.forEach(function (name) {
       assert.equal(typeof AF[name], 'function', 'module.exports 缺少 ' + name);
@@ -465,6 +472,85 @@ const TRANSCRIPT_SCRIPT = TRANSCRIPT_LINES.slice(3, 9);
     assert.equal(verifyTranscriptMatch(paper, '').ok, false);
   });
 
+  await check('Q4. 联网原文的「1M:/2W:」轮次标记：结构化门槛认得出，逐字核验前会剥离', function () {
+    const verifyTranscriptMatch = fn('verifyTranscriptMatch');
+    const scriptMatchesSource = fn('scriptMatchesSource');
+    const paper = makePaper({ title: 'Questions 1 to 4' });
+    const body = [
+      'Tapescript 2023年12月英语六级听力原文',
+      'Questions 1 to 4 are based on the conversation you have just heard.',
+      '1M: Good morning, doctor. I have been feeling tired lately.',
+      '2W: Let me check your test results first.',
+      '3M: Thank you. I hope it is nothing serious.',
+      '4W: Take this medicine and come back next week.',
+    ].join('\n') + '\n' + new Array(12).join('5M: I will follow your advice and come back next week.\n');
+    const res = verifyTranscriptMatch(paper, body);
+    assert.equal(res.ok, true, '带 1M:/2W: 的原文应通过结构化门槛：' + JSON.stringify(res));
+    assert.ok(res.hits.some(function (h) { return /^speakers:/.test(h); }),
+      '应把 1M:/2W: 认成说话人标记（lazynote 等来源就是段号 + M/W）：' + res.hits.join(','));
+
+    /* 候选正文可能没有段号（只有 M:/W:），AI 切出来的行却带 1M:/2W:：
+     * 逐字核验前必须先剥标记，否则会被判成「原文里找不到」而丢弃。 */
+    const plain = 'Good morning, doctor. I have been feeling tired lately. '
+      + 'Let me check your test results first. Thank you. I hope it is nothing serious.';
+    const match = scriptMatchesSource([
+      '1M: Good morning, doctor. I have been feeling tired lately.',
+      '2W: Let me check your test results first.',
+    ], plain);
+    assert.equal(match.ok, true, '逐字核验前应剥掉 1M:/2W: 前缀：' + JSON.stringify(match));
+  });
+
+  await check('S4. extractStemsFromScript：口播行带 3M:/2W: 标记 → 题干存干净文本（不再念轮次号）', function () {
+    const extractStemsFromScript = fn('extractStemsFromScript');
+    const paper = makePaper({ title: 'Questions 5 to 8' });
+    const res = extractStemsFromScript(paper, [
+      '5.',
+      '3M: Why did the speaker retire so early?',
+      'A) He wanted to change jobs.',
+      'B) He had a serious injury.',
+      'C) He was too young to continue.',
+      'D) He wanted to spend more time with family.',
+    ]);
+    assert.equal(res.found, 1, '应抽出 1 道口播题干：' + JSON.stringify(res));
+    assert.equal(res.stems[0], 'Why did the speaker retire so early?',
+      '题干里的 3M: 必须剥掉：' + JSON.stringify(res.stems));
+  });
+
+  await check('S5. extractStemsFromScript：原文对白/重复行不能当题干（2026-10-29 用户假题干回归）', function () {
+    const extractStemsFromScript = fn('extractStemsFromScript');
+    const paper = makePaper({ title: 'CET-6 听力理解', stems: ['', '', ''] });
+    const res = extractStemsFromScript(paper, [
+      '*M*:Thatsoundsamazing.Doyouhavetorelocate?',
+      '*W*:YesIgotanewjobinanothercity.',
+      'M: That sounds amazing. Do you have to relocate?',
+      'Do you have to relocate?',
+      'W: Yes, I have to move next month.',
+    ]);
+    assert.equal(res.found, 0, '对白/非疑问词开头/粘连文本都不能变成题干：' + JSON.stringify(res));
+
+    /* 裸题号（只有 "5."）后面跟对白，也不能当题干 */
+    const paper2 = makePaper({ title: 'Questions 5 to 8', stems: ['Question 5', 'Question 6', 'Question 7', 'Question 8'] });
+    const res2 = extractStemsFromScript(paper2, [
+      '5.',
+      'That sounds amazing. Do you have to relocate?',
+      'A) He wanted to change jobs.',
+    ]);
+    assert.equal(res2.found, 0, '裸题号 + 对白不能当题干：' + JSON.stringify(res2));
+  });
+
+  await check('S6. extractStemsFromScript：同一句原文只占一道题（重复行不再把题干复制到两题）', function () {
+    const extractStemsFromScript = fn('extractStemsFromScript');
+    const paper = makePaper({ title: 'Questions 1 to 4', stems: ['', '', '', ''] });
+    const res = extractStemsFromScript(paper, [
+      'What does the man want to do?',
+      'What does the man want to do?',
+      'What is the woman?',
+    ]);
+    assert.equal(res.found, 2, '重复行只能补一题：' + JSON.stringify(res));
+    assert.equal(res.stems[0], 'What does the man want to do?');
+    assert.equal(res.stems[1], 'What is the woman?', '第二题应是下一条不同问句，而不是重复第一条：' + JSON.stringify(res.stems));
+  });
+
   /* ================= 六、AI 题干 JSON 校验 ================= */
 
   await check('J1. applyStemJson：4 个选项且 ≥3/4 匹配才接受，只返回结果不改 paper', function () {
@@ -580,6 +666,50 @@ const TRANSCRIPT_SCRIPT = TRANSCRIPT_LINES.slice(3, 9);
     assert.equal(unknown.qs[0].q, 'Question 1');
     assert.equal(applyPatches([unknown], null), 0);
     assert.equal(applyPatches(null, {}), 0);
+  });
+
+  await check('F5. sanitizeStems：清掉旧版写坏的"原文对白题干"，正常题干/补丁保留', function () {
+    const sanitizeStems = fn('sanitizeStems');
+    const paper = {
+      id: 'imp-old',
+      stemSource: 'transcript',
+      qs: [
+        { q: '*M*:Thatsoundsamazing.Doyouhavetorelocate?', opts: [], a: 0 },
+        { q: '1M: That sounds amazing. Do you have to relocate?', opts: [], a: 0 },
+        { q: REAL_STEMS[2], opts: [], a: 0 },
+        { q: '', opts: [], a: 0 },
+      ],
+    };
+    const patches = {
+      'imp-old': {
+        stems: {
+          0: '*M*:Thatsoundsamazing.Doyouhavetorelocate?',
+          1: '1M: That sounds amazing. Do you have to relocate?',
+          2: REAL_STEMS[2],
+        },
+        stemSource: 'transcript',
+        at: '2026-10-26T00:00:00.000Z',
+      },
+    };
+    const n = sanitizeStems([paper], patches);
+    assert.equal(n, 2, '应清掉 2 条泄漏题干：' + n);
+    assert.equal(paper.qs[0].q, '');
+    assert.equal(paper.qs[1].q, '');
+    assert.equal(paper.qs[2].q, REAL_STEMS[2], '正常题干不能被误清');
+    assert.equal(paper.stemSource, undefined, '清完不能继续声称"来源：原文口播"');
+    assert.ok(!('0' in patches['imp-old'].stems), '补丁里的泄漏题干要一并删掉，避免重启又写回');
+    assert.ok(!('1' in patches['imp-old'].stems));
+    assert.equal(patches['imp-old'].stems['2'], REAL_STEMS[2], '正常题干补丁保留');
+    /* 共享副本 id 回退原篇 id 的补丁 */
+    const shared = { id: 'imp-old-shared-3', qs: [{ q: '*M*:fake?', opts: [], a: 0 }] };
+    assert.equal(sanitizeStems([shared], {}), 1);
+
+    /* 题干全被清掉时，补丁里的来源标记也要清：否则下次只补原文又会写回 "来源：原文口播" */
+    const paper2 = { id: 'imp-old2', stemSource: 'transcript', qs: [{ q: '*M*:fake?', opts: [], a: 0 }] };
+    const patches2 = { 'imp-old2': { stems: { 0: '*M*:fake?' }, stemSource: 'transcript', stemFromSet: null, at: 'x' } };
+    assert.equal(sanitizeStems([paper2], patches2), 1);
+    assert.equal(patches2['imp-old2'].stems, undefined);
+    assert.equal(patches2['imp-old2'].stemSource, undefined);
   });
 
   /* ================= 八、run 编排（stub 注入，不碰真实网络/AI） ================= */
@@ -915,6 +1045,117 @@ const TRANSCRIPT_SCRIPT = TRANSCRIPT_LINES.slice(3, 9);
 
 
 
+  await check('R11. run 原文未通过核验：未核验候选正文不得当"原文口播"抽题干（2026-10-29 回归）', async function () {
+    const run = fn('run');
+    const paper = makePaper({ id: 'imp-unverified' });
+    const store = makeStore();
+    const page = [
+      'Tapescript: 2023年12月英语六级听力原文',
+      'Questions 1 to 4 are based on the conversation you have just heard.',
+      '1M: That sounds amazing. Do you have to relocate?',
+      '2W: Yes, I got a new job in another city and I will move next month.',
+      '3M: So you will have to sell your apartment and move all your furniture.',
+    ].join('\n') + '\n' + new Array(14).join('M: I think the most important thing is to practice every day and never give up.\n');
+    const ws = makeWebSearch({ collectResult: {
+      text: page, sources: [{ url: 'https://example.com/unverified' }], errors: [], tried: 1,
+    } });
+    const ai = makeAi(function (call) {
+      if (/Tapescript 校对员/.test(call.user)) return { match: false, evidence: '', script: [] };
+      return { items: [] };
+    });
+    const report = await run(paper, { webSearch: ws, ai: ai, store: store, pool: [] });
+    assert.equal(report.scriptAdded, false);
+    assert.equal(report.stemsFilled, 0, '未核验正文不能抽题干：' + JSON.stringify(report));
+    assert.deepEqual(paper.qs.map(function (q) { return q.q; }), PLACEHOLDERS, '卷面不能被写入对白');
+    assert.equal(store.d.lsnPatch, undefined, '没有可信改动就不该写补丁');
+  });
+
+  await check('R12. run 原文核验通过：题干可取自核验版正文，但只认单句问句', async function () {
+    const run = fn('run');
+    const paper = makePaper({ id: 'imp-verified', title: 'Questions 1 to 4' });
+    const page = [
+      'Tapescript: 2023年12月英语六级听力原文',
+      'Section A Conversation One',
+      'Questions 1 to 4 are based on the conversation you have just heard.',
+      'W: Do you have to relocate?',
+      'M: Yes, I have to move to another city next month for my new job.',
+      'Question 1. What does the man want to do?',
+      'W: That sounds exciting but also a little stressful.',
+      'M: I know, but I have already found a moving company to help me.',
+    ].join('\n') + '\n' + new Array(12).join('W: I think the most important thing is to practice every day and never give up.\n');
+    const ws = makeWebSearch({ collectResult: {
+      text: page, sources: [{ url: 'https://example.com/verified' }], errors: [], tried: 1,
+    } });
+    const ai = makeAi(function (call) {
+      if (/Tapescript 校对员/.test(call.user)) {
+        return { match: true, evidence: 'Do you have to relocate?', script: [
+          'W: Do you have to relocate?',
+          'M: Yes, I have to move to another city next month for my new job.',
+          'W: That sounds exciting but also a little stressful.',
+        ] };
+      }
+      return { items: [] };
+    });
+    const report = await run(paper, { webSearch: ws, ai: ai, store: makeStore(), pool: [] });
+    assert.equal(report.scriptAdded, true, '核验通过应补入原文：' + JSON.stringify(report));
+    assert.equal(report.stemsFilled, 1, '只应补出带 Question 1 标签的那一题：' + JSON.stringify(report));
+    assert.equal(paper.qs[0].q, 'What does the man want to do?');
+    assert.equal(report.stemsFrom, 'transcript');
+    assert.ok(!paper.qs.some(function (q) { return /relocate|relocate|sounds amazing/i.test(String(q.q)); }),
+      '原文对白不能被当成题干：' + JSON.stringify(paper.qs.map(function (q) { return q.q; })));
+  });
+
+  await check('R13. run 直连原文站：直连页过门槛就优先用它补原文，不再走搜索引擎', async function () {
+    const run = fn('run');
+    const paper = makePaper({ id: 'imp-direct', title: 'Questions 1 to 4' });
+    const directText = TRANSCRIPT_TEXT + '\nQuestion 1. What does the man want to do?\n';
+    const store = makeStore();
+    const ws = makeWebSearch({ directResult: {
+      text: directText,
+      sources: [{ url: 'https://english-exam.lazynote.cn/cet6/sections/listening/2025-06-1/', title: '直连原文页', len: directText.length }],
+      blocks: [{ url: 'https://english-exam.lazynote.cn/cet6/sections/listening/2025-06-1/', title: '直连原文页', text: directText, len: directText.length }],
+      errors: [], tried: 1,
+    } });
+    const ai = makeAi(function (call) {
+      if (/Tapescript 校对员/.test(call.user)) return { match: true, evidence: TRANSCRIPT_EVIDENCE, script: TRANSCRIPT_SCRIPT };
+      if (/找出原文中/.test(call.user)) return { items: [] };
+      if (/找出每道题/.test(call.user)) return { items: [] };
+      throw new Error('unexpected AI prompt: ' + call.user.slice(0, 40));
+    });
+    const report = await run(paper, { webSearch: ws, ai: ai, store: store, pool: [] });
+    assert.equal(report.scriptAdded, true, '直连页应补入原文：' + JSON.stringify(report));
+    assert.ok(paper.script.length >= 2);
+    assert.equal(report.stemsFilled, 1, '直连页里印出的 Question 1 题干应被确定性抽出：' + JSON.stringify(report));
+    assert.equal(paper.qs[0].q, 'What does the man want to do?');
+    assert.equal(report.stemsFrom, 'transcript');
+    assert.equal(ws.directCalls.length, 1, '应先调用直连原文站一次');
+    assert.equal(ws.collectCalls.length, 0, '直连成功后不应再调搜索引擎');
+  });
+
+  await check('R14. run 直连原文站失败/无正文：自动回退搜索引擎，不阻塞补全', async function () {
+    const run = fn('run');
+    const paper = makePaper({ id: 'imp-direct-fallback' });
+    const ws = makeWebSearch({
+      directThrows: new Error('direct down'),
+      collectResult: {
+        text: TRANSCRIPT_TEXT,
+        sources: [{ url: 'https://example.com/tape', len: TRANSCRIPT_TEXT.length }],
+        errors: [], tried: 1,
+      },
+    });
+    const ai = makeAi(function (call) {
+      if (/Tapescript 校对员/.test(call.user)) return { match: true, evidence: TRANSCRIPT_EVIDENCE, script: TRANSCRIPT_SCRIPT };
+      if (/找出原文中/.test(call.user)) return { items: [] };
+      if (/找出每道题/.test(call.user)) return { items: [] };
+      throw new Error('unexpected AI prompt: ' + call.user.slice(0, 40));
+    });
+    const report = await run(paper, { webSearch: ws, ai: ai, store: makeStore(), pool: [] });
+    assert.equal(ws.directCalls.length, 1, '应尝试过直连原文站');
+    assert.equal(ws.collectCalls.length, 1, '直连失败后应回退搜索引擎');
+    assert.equal(report.scriptAdded, true, '回退搜索应能补入原文：' + JSON.stringify(report));
+    assert.ok(report.errors.some(function (e) { return /直连原文站失败/.test(e); }), 'errors: ' + JSON.stringify(report.errors));
+  });
+
   await check('A1. afterImport：过滤无需补全篇目、按顺序串行、汇总字段与回调齐全', async function () {
     const afterImport = fn('afterImport');
     const donor = makePaper({ id: 'imp-donor', setNo: 2, stems: REAL_STEMS });
@@ -1043,6 +1284,26 @@ const TRANSCRIPT_SCRIPT = TRANSCRIPT_LINES.slice(3, 9);
     const m = /const CACHE = 'keeplrn-v(\d+)'/.exec(SW_SRC);
     assert.ok(m, 'sw.js 缺少 CACHE 版本号');
     assert.ok(Number(m[1]) >= 19, '新增脚本后 cache 版本应 >= v19，实际 v' + m[1]);
+  });
+
+  await check('W8. listening.js：_shell 清理旧版写坏的题干（sanitizeStems 在 Picker.filter 前）', function () {
+    assert.ok(LISTENING_SRC.indexOf('.sanitizeStems(') >= 0, 'listening.js 必须调用模块 sanitizeStems');
+    assert.ok(LISTENING_SRC.indexOf('_sanitizeStems(pool)') >= 0, '_shell 应对 pool 调 _sanitizeStems');
+    const applyAt = LISTENING_SRC.indexOf('this._applyPatches(pool)');
+    const cleanAt = LISTENING_SRC.indexOf('this._sanitizeStems(pool)');
+    const filterAt = LISTENING_SRC.indexOf('Picker.filter(pool');
+    assert.ok(applyAt >= 0 && cleanAt > applyAt, '清理要在补丁叠加之后');
+    assert.ok(filterAt > cleanAt, '清理必须早于筛选/渲染');
+    assert.ok(LISTENING_SRC.indexOf('sanitizeStems(papers, patches)') >= 0,
+      '应把 Store 里的补丁一起清理，避免重启写回');
+  });
+
+  await check('W9. listening.js：题干来源说明只说真实核对，不再一律写"经同套听力逐字核对"', function () {
+    assert.ok(LISTENING_SRC.indexOf('_stemVerifyNote') >= 0, '应有按来源区分的核对说明 _stemVerifyNote');
+    assert.equal(LISTENING_SRC.indexOf('补入的题干经同套听力逐字核对'), -1,
+      '旧文案"补入的题干经同套听力逐字核对"对原文/联网来源不成立，必须按来源分别说明');
+    assert.ok(LISTENING_SRC.indexOf('逐字取自本篇听力原文') >= 0, '原文口播来源应说明逐字取自原文');
+    assert.ok(LISTENING_SRC.indexOf('已比对本题选项') >= 0, '联网来源应说明已比对选项');
   });
 
   await check('I1. importer.js：_persist 之后异步调 afterImport（不 await 阻塞导入弹窗）', function () {

@@ -267,6 +267,24 @@ check('extractArticleText：去噪音标签、解实体、保留句子换行、�
   assert.ok(!/\n{3,}/.test(text), '正文空行最多一段：' + JSON.stringify(text));
 });
 
+check('extractArticleText：逐词 <span> 不能把英文粘成一个词（2026-10-29 用户报错回归）', function () {
+  /* 实站（听力原文页）把每个单词包在 <span> 里。旧实现把标签直接删掉，
+   * 正文变成 "Thatsoundsamazing.Doyouhavetorelocate?"：
+   * AI 切出的原文/证据句与候选正文逐字对不上 → 原文被整段丢弃；
+   * 同一份正文又被拿去抽题干 → 写出假题干。这里锁住"标签当分隔符"的行为。 */
+  const words = ['That', 'sounds', 'amazing.', 'Do', 'you', 'have', 'to', 'relocate?'];
+  const html = '<html><body><article><p><b>*M*:</b>'
+    + words.map(function (w) { return '<span class="w">' + w + '</span>'; }).join('')
+    + '</p></article></body></html>';
+  const text = WS.extractArticleText(html);
+  assert.ok(text.indexOf('That sounds amazing. Do you have to relocate?') >= 0,
+    '逐词 span 之间必须保留空格：' + JSON.stringify(text));
+  assert.equal(text.indexOf('Thatsoundsamazing'), -1, '英文单词不能跨标签粘连：' + JSON.stringify(text));
+  const badge = WS.extractArticleText('<p><b>*M*:</b><span>That</span> <span>sounds</span> <span>amazing.</span></p>');
+  assert.ok(badge.indexOf('*M*: That sounds amazing.') >= 0,
+    '说话人徽标与正文之间要有空格：' + JSON.stringify(badge));
+});
+
 check('extractArticleText：<p> 分段、纯文本输入与空输入', function () {
   assert.ok(WS.extractArticleText('<p>First paragraph.</p><p>Second paragraph.</p>').includes('First paragraph.\n\nSecond paragraph.'));
   assert.equal(WS.extractArticleText('  just text  '), 'just text');
@@ -579,6 +597,52 @@ check('extractArticleText：<p> 分段、纯文本输入与空输入', function 
         assert.ok(b.url && b.text && b.text.length >= 500, '每页带 url 与完整正文');
         assert.ok(b.text.length >= (got.sources[0].len > 0 ? 500 : 500));
       });
+    });
+  });
+
+  /* ================= 八点五、直连原文源（2026-10-29） ================= */
+
+  check('transcriptPageUrls：按 年-月-套号 生成懒笔记直连地址；缺元数据不出地址', function () {
+    assert.equal(typeof WS.transcriptPageUrls, 'function', '缺少导出 transcriptPageUrls');
+    assert.equal(typeof WS.collectDirectTranscript, 'function', '缺少导出 collectDirectTranscript');
+    const urls = WS.transcriptPageUrls({ type: 'cet6', year: 2025, session: '06', setNo: 1 });
+    assert.equal(urls.length, 1);
+    assert.equal(urls[0].url, 'https://english-exam.lazynote.cn/cet6/sections/listening/2025-06-1/');
+    assert.equal(urls[0].setNo, 1);
+    assert.ok(/第 1 套|第1套/.test(urls[0].title));
+    const cet4 = WS.transcriptPageUrls({ type: 'cet4', year: 2023, session: '12' });
+    assert.equal(cet4.length, 3, '没识别套号时依次试 1~3 套');
+    assert.ok(cet4.every(function (u) { return /\/cet4\/sections\/listening\/2023-12-[1-3]\//.test(u.url); }));
+    assert.deepEqual(WS.transcriptPageUrls({ type: 'kaoyan', year: 2025, session: '06' }), []);
+    assert.deepEqual(WS.transcriptPageUrls({ type: 'cet6', session: '06' }), []);
+    assert.deepEqual(WS.transcriptPageUrls(null), []);
+  });
+
+  await checkAsync('collectDirectTranscript：直连页抽正文并返回 sources/blocks；404 记 errors 不抛异常', async function () {
+    const page = '<html><body><article><p>Tapescript 2025年6月六级听力原文</p>'
+      + '<p>Questions 1 to 4 are based on the conversation you have just heard.</p>'
+      + '<p>M: My name is Bob Fetterman. I am the computer technician from Alpha Maintenance.</p>'
+      + '<p>W: Did not I call for you last week? I spoke to a lady there last Tuesday and made it clear it was urgent.</p>'
+      + new Array(8).join('<p>W: I am indignant that it has taken you so long to come, but I understand it may not be your fault.</p>')
+      + '</article></body></html>';
+    const seen = [];
+    await withStubFetch(function (url) {
+      seen.push(url);
+      if (url === 'https://english-exam.lazynote.cn/cet6/sections/listening/2025-06-1/') return makeResponse(page);
+      return makeResponse('not found', { status: 404 });
+    }, async function () {
+      const got = await WS.collectDirectTranscript({ type: 'cet6', year: 2025, session: '06', setNo: 1 },
+        { timeoutMs: 2000, requireMatch: /听力|Tapescript|Questions/i });
+      assert.equal(got.tried, 1);
+      assert.equal(got.blocks.length, 1, '应返回 1 页正文：' + JSON.stringify(got.errors));
+      assert.ok(/Alpha Maintenance/.test(got.text), '正文应含目标内容');
+      assert.ok(got.sources[0].url.indexOf('lazynote') >= 0);
+      assert.equal(seen.length, 1);
+
+      /* 404：errors 记录原因、不抛异常、不产生 blocks */
+      const miss = await WS.collectDirectTranscript({ type: 'cet6', year: 2019, session: '06', setNo: 2 }, { timeoutMs: 1000 });
+      assert.equal(miss.blocks.length, 0);
+      assert.ok(miss.errors.length >= 1, '404 应记录 errors');
     });
   });
 

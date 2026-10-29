@@ -56,7 +56,7 @@ const ViewHome = {
     root.innerHTML = `
     <section class="hero">
       <div style="position:relative;z-index:1">
-        <div class="d">今天是开始学习的第 <b style="font-size:16px">${st.streak || 0}</b> 天</div>
+        <div class="d">今天是你连续学习的第 <b style="font-size:16px">${st.streak || 0}</b> 天</div>
         <div class="n">Keep <small>Learning</small></div>
         <div class="d" style="margin-top:4px">坚持一点点，离目标更近一步！</div>
       </div>

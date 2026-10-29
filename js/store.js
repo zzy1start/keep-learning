@@ -156,7 +156,13 @@ const Store = {
       const dump = Object.assign({}, this.d);
       delete dump._bookCache;
       localStorage.setItem(this.KEY, JSON.stringify(dump));
-    } catch (e) { App.toast('存储空间不足，请在设置中清理数据', 'err'); }
+      this.lastFlushOk = true;
+      return true;
+    } catch (e) {
+      this.lastFlushOk = false;
+      App.toast('存储空间不足，请在设置中清理数据', 'err');
+      return false;
+    }
   },
   set(fn) { fn(this.d); this.flush(); },
 
@@ -364,6 +370,12 @@ const Store = {
 
   /** 导出备份（自动剔除运行时缓存，保证文件轻量） */
   backup() {
+    /* 导出前先裁掉词库引擎里历史遗留的空状态，避免备份被撑到几 MB（P0 附带修复） */
+    try {
+      if (typeof VocabEngine !== 'undefined' && VocabEngine.pruneEmptyStates) {
+        VocabEngine.pruneEmptyStates({ store: this });
+      }
+    } catch (e) { /* 裁剪失败不影响导出 */ }
     const dump = Object.assign({}, this.d);
     delete dump._bookCache;
     return JSON.stringify(dump, null, 2);

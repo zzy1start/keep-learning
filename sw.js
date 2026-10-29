@@ -10,7 +10,7 @@
 
 /* 2026-10-22：样式/脚本修复后必须换 cache 版本，否则 stale-while-revalidate 会先回旧 CSS，
  * 用户刷新一次看不到修复（要刷两次）。 */
-const CACHE = 'keeplrn-v19';
+const CACHE = 'keeplrn-v24';
 const CACHE_PREFIX = 'keeplrn-';
 
 // app 外壳。相对路径按 SW 作用域解析，便于整站部署到任意子路径。

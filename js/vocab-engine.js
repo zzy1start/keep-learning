@@ -102,6 +102,17 @@ const VocabEngine = {
     };
   },
 
+  /** 单个词×义项状态。惰性创建：只有真正被选进轮次/作答后才落盘（见 ensurePlacementLevel 注释）。 */
+  _newState() {
+    return {
+      level: 0, streak: 0, levelAttempts: 0, attempts: 0, errors: 0,
+      errorTypes: { polysemy: 0, confusable: 0, forgotten: 0, timeout: 0 },
+      hesitationMsSum: 0, hesitantCount: 0, stuckRounds: 0,
+      nextDueAt: null, inQuizPool: false, quizAudited: false, hardWord: false,
+      polysemyRisk: false, confusableRisk: false, lastGradedAt: null, intervalIdx: 0,
+    };
+  },
+
   /** 读存档。优先 Store.d.vocabEngine（跟着备份走），其次规约的 localStorage 键（外部工具/旧版） */
   load(store) {
     if (store && store.d) this._store = store;      // 记住存档对象：后续 save() 都写回它
@@ -164,15 +175,7 @@ const VocabEngine = {
   stateOf(wordId, senseId, create) {
     const s = this.load();
     const key = wordId + '#' + senseId;
-    if (!s.words[key] && create) {
-      s.words[key] = {
-        level: 0, streak: 0, levelAttempts: 0, attempts: 0, errors: 0,
-        errorTypes: { polysemy: 0, confusable: 0, forgotten: 0, timeout: 0 },
-        hesitationMsSum: 0, hesitantCount: 0, stuckRounds: 0,
-        nextDueAt: null, inQuizPool: false, quizAudited: false, hardWord: false,
-        polysemyRisk: false, confusableRisk: false, lastGradedAt: null, intervalIdx: 0,
-      };
-    }
+    if (!s.words[key] && create) s.words[key] = this._newState();
     return s.words[key] || null;
   },
 
@@ -197,6 +200,32 @@ const VocabEngine = {
     }
     if (n) this.save();
     return n;
+  },
+
+  /**
+   * 清理历史版本「组轮即给整本书建状态」留下的空记录（P0 存量数据修复）。
+   * 只删「从未作答、没有任何层级/队列/时间记录」的默认状态；
+   * 定级起点（level>0）、抽检池、有作答/到期时间的记录全部保留。
+   * @returns {number} 删除条数
+   */
+  pruneEmptyStates(opts = {}) {
+    const s = this.load(opts.store);
+    let removed = 0;
+    for (const key of Object.keys(s.words || {})) {
+      const st = s.words[key];
+      if (!st || typeof st !== 'object') { delete s.words[key]; removed++; continue; }
+      /* 「空」的判据是**没有任何学习证据**，而不是 level=0：
+       * 旧版 bug 会给整本书每个词写 placement 起点（level 1/3、inQuizPool），
+       * 这些状态里 attempts/levelAttempts/nextDueAt/lastGradedAt 全为 0，属于可重算的起点，
+       * 删掉后 ensurePlacementLevel() 会按 user.skipBands/bandAccuracy 重新算出同一层级。
+       * 保留任何有作答、到期、hard/audit 记录的词。*/
+      const hasEvidence = (st.attempts > 0) || (st.levelAttempts > 0) || (st.streak > 0)
+        || (st.errors > 0) || (st.hesitationMsSum > 0) || st.lastGradedAt || st.nextDueAt
+        || st.hardWord || st.quizAudited;
+      if (!hasEvidence) { delete s.words[key]; removed++; }
+    }
+    if (removed) this.save(opts.store);
+    return removed;
   },
 
   /* ================= §5.1 冷启动定级 ================= */
@@ -291,12 +320,18 @@ const VocabEngine = {
    */
   ensurePlacementLevel(entry) {
     const s = this.load();
-    const st = this.stateOf(entry.wordId, 's0', true);
-    if ((st.attempts || 0) > 0 || (st.level || 0) > 0) return st;   // 已有记录：不覆盖
+    /* 【P0 修复 2026-10-29】原来第一行就 stateOf(..., true) 建持久状态，再判断定级——
+     * 组轮会对整本词书每个词调用一次，于是"只学了 1 个词"也会写入 4500+ 条空状态，
+     * 2~3 本词书后 localStorage 超 5MB 配额，之后的学习进度静默不落盘。
+     * 现在：已有状态直接返回；没有定级信息返回 null；有定级信息返回**临时状态**，
+     * 只用于本轮分池，真正被选进轮次时 _selectSlots 才落盘（见 push）。*/
+    const existing = this.stateOf(entry.wordId, 's0', false);
+    if (existing) return existing;                                   // 已有记录：不覆盖
     const u = s.user || {};
     const hasPlacement = u.bandPlacement != null || (u.skipBands && u.skipBands.length)
       || (u.bandAccuracy && Object.keys(u.bandAccuracy).length);
-    if (!hasPlacement) return st;
+    if (!hasPlacement) return null;
+    const st = this._newState();
     /* 规约 §5.1 步 3 末条：任何带中抽样答对的词 → L3 + 抽检池（覆盖其余规则） */
     if ((u.placementCorrect || []).includes(entry.wordId)) { st.level = 3; st.inQuizPool = true; return st; }
     const P = this.CONFIG.PLACEMENT;
@@ -307,6 +342,7 @@ const VocabEngine = {
     else if (u.bandPlacement != null && band >= u.bandPlacement) { st.level = 0; }
     else if (u.bandPlacement != null && band < u.bandPlacement) { st.level = 1; }
     if (st.level > 0) st.attempts = 0;      // 只是"起点"，不算已作答（新词统计仍准）
+    st.__transient = true;                  // 未落盘，仅本轮分池用
     return st;
   },
 
@@ -463,7 +499,10 @@ const VocabEngine = {
       /* 定级是"惰性"的：新词第一次进轮时才按定级结果给起点（§5.1 步 3） */
       if (!r.st || ((r.st.attempts || 0) === 0 && (r.st.level || 0) === 0)) {
         const placed = this.ensurePlacementLevel(r.entry);
-        if (placed && placed !== r.st) r.st = placed;
+        if (placed && placed !== r.st) {
+          r.st = placed;
+          if (placed.__transient) r.tempPlacement = true;   // 有起点但还没落盘
+        }
       }
       const lv = r.st ? r.st.level : 0;
       if (lv === 3 || lv === 4) {
@@ -479,10 +518,23 @@ const VocabEngine = {
     }
 
     const slots = [];
-    const push = (r, role) => slots.push({
-      wordId: r.entry.wordId, senseId: r.sense.senseId, role,
-      word: r.entry.word, sense: r.sense, entry: r.entry,
-    });
+    const push = (r, role) => {
+      /* 【P0 修复】定级临时状态只在这词真的被选进本轮词位时才落盘（一轮最多十几个词位），
+       * 不再因为组轮就把整本书每个词都写成状态。 */
+      if (r.tempPlacement && r.st && ((r.st.level || 0) > 0 || r.st.inQuizPool)) {
+        const st = this.stateOf(r.entry.wordId, r.sense.senseId, true);
+        if (!(st.attempts || 0) && !(st.level || 0)) {
+          st.level = r.st.level || 0;
+          st.inQuizPool = !!r.st.inQuizPool;
+        }
+        delete r.st.__transient;
+        delete r.tempPlacement;
+      }
+      slots.push({
+        wordId: r.entry.wordId, senseId: r.sense.senseId, role,
+        word: r.entry.word, sense: r.sense, entry: r.entry,
+      });
+    };
 
     /* --- 抽检位 --- */
     if (mode !== 'new') {

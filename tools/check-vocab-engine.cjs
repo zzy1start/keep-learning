@@ -562,6 +562,61 @@ const today = '2026-10-16';
     assert.equal(st.inQuizPool, true);
   });
 
+  /* ================= P0 回归（2026-10-29）：状态惰性创建与存量裁剪 ================= */
+
+  await check('P0 回归：组轮只为选中的词落盘，不再给整本词书写状态', () => {
+    const { Engine } = load({ rand: 0.99 });
+    const s = Engine.load();
+    s.user.bandPlacement = 3;
+    s.user.bandAccuracy = { 0: 0.9, 1: 0.6, 2: 0.2, 3: 0.1, 4: 0.1, 5: 0.1 };
+    s.user.skipBands = [0];
+    const entries = [];
+    for (let i = 0; i < 300; i++) {
+      entries.push(entry('w:lazy' + i, 'lazy' + i, i % 6, { senses: ['释义A', '释义B'] }));
+    }
+    const before = Object.keys(Engine.load().words).length;
+    const round = Engine.startRound({ entries, mode: 'smart', today });
+    const after = Object.keys(Engine.load().words).length;
+    assert.ok(round && round.slots.length > 0, '应组出词位');
+    assert.ok(after - before <= round.slots.length + 2,
+      '组轮只为选中词建状态：before=' + before + ' after=' + after + ' slots=' + round.slots.length);
+    assert.ok(after < 80, '300 词×2 义项不应把整本写成状态，实际 ' + after);
+  });
+
+  await check('P0 回归：ensurePlacementLevel 不写盘，选中后才落盘（定级起点不丢）', () => {
+    const { Engine } = load({ rand: 0.99 });
+    Engine.applyPlacement(Engine.placement([{ band: 0, sampled: 12, correct: 12 }], [1000]));
+    const e = entry('w:temp', 'temp', 0);
+    const temp = Engine.ensurePlacementLevel(e);
+    assert.ok(temp && temp.__transient === true, '应返回临时状态');
+    assert.equal(Engine.stateOf('w:temp', 's0', false), null, '不得创建持久状态');
+    const round = Engine.startRound({ entries: [e], mode: 'smart', today, dailyNewTarget: 8 });
+    const hit = round.slots.some(function (x) { return x.wordId === 'w:temp'; });
+    const st = Engine.stateOf('w:temp', 's0', false);
+    if (hit) {
+      assert.ok(st && st.level === 3, '被选中的跳过带词应落盘为 L3，实际 ' + JSON.stringify(st));
+      assert.equal(st.inQuizPool, true);
+    }
+  });
+
+  await check('P0 回归：pruneEmptyStates 清掉无学习证据的 placement 起点，保留作答/到期记录', () => {
+    const { Engine } = load();
+    const s = Engine.load();
+    s.words['w:blank#s0'] = Engine._newState();
+    const placed = Engine._newState(); placed.level = 3; placed.inQuizPool = true;
+    s.words['w:placed#s0'] = placed;
+    const answered = Engine._newState(); answered.attempts = 2; answered.level = 1;
+    s.words['w:answered#s0'] = answered;
+    const due = Engine._newState(); due.level = 2; due.nextDueAt = '2026-10-20';
+    s.words['w:due#s0'] = due;
+    const n = Engine.pruneEmptyStates();
+    assert.ok(n >= 2, '应清掉空/起点状态，实际 ' + n);
+    assert.equal(!!Engine.load().words['w:blank#s0'], false, '空状态应被清掉');
+    assert.equal(!!Engine.load().words['w:placed#s0'], false, '可重算的 placement 起点应清掉');
+    assert.equal(!!Engine.load().words['w:answered#s0'], true, '有作答记录不能清');
+    assert.equal(!!Engine.load().words['w:due#s0'], true, '有到期记录不能清');
+  });
+
   if (failed) process.exitCode = 1;
   else console.log('全部 ' + passed + ' 项词汇引擎检查通过');
 })();

@@ -568,11 +568,10 @@ const ViewWrite = {
    *  混在题型标签里既挤占位置，也让人误以为它是第五种练习类型。
    *  现在移到标签栏右侧，与「导入真题」并列成操作按钮。*/
   _customTask() {
-    this._memoFlush();
-    this._resetMemo();
-    // 切回真题写作视图，自定义题目沿用写作区的评分与输入
-    this.tab = 'task';
-    this._resetTaskState();
+    /* 【P1 修复 2026-10-29】打开弹窗前**不能**重置本轮状态：
+     * 旧实现先 _resetTaskState() 再弹窗，用户点 × 取消后计时器已被 clearInterval、
+     * 评分结果/草稿态被清空，页面却仍显示"写作中 39:57"，暂停/结束按钮全部失效。
+     * 现在只在「开始写作」确认后切换 tab 并重置。*/
     App.modal('自定义题目', `
       <div class="fld"><label class="lab">题目（英文）</label>
         <textarea class="inp" id="cuT" placeholder="输入英文题目..."></textarea></div>
@@ -586,6 +585,12 @@ const ViewWrite = {
       $('#cuOk', b).onclick = () => {
         const title = $('#cuT', b).value.trim();
         if (!title) { App.toast('请输入题目', ''); return; }
+        // 确认新建题目：此时才保存当前草稿并重置本轮计时/评分状态
+        this._memoFlush();
+        this._resetMemo();
+        // 切回真题写作视图，自定义题目沿用写作区的评分与输入
+        this.tab = 'task';
+        this._resetTaskState();
         this.curTask = {
           id: 'custom' + Date.now(), title, cn: $('#cuC', b).value,
           level: '自定义', genre: '自定义', limit: +$('#cuL', b).value || 40,

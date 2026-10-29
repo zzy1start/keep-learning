@@ -116,6 +116,15 @@ document.addEventListener('DOMContentLoaded', async () => {
   } catch (e) { console.warn('Service Worker 不可用', e); }
 
   Store.load();
+  /* 【P0 存量修复 2026-10-29】旧版"首次组轮就把整本词书每个词写成状态"，会把 localStorage
+   * 撑到 5MB 配额以上，之后学习进度静默不落盘。启动时一次性裁掉从未作答、无层级/时间记录的
+   * 默认状态；新词现在改为惰性创建（见 vocab-engine.ensurePlacementLevel），不会回涨。*/
+  try {
+    if (typeof VocabEngine !== 'undefined' && VocabEngine.pruneEmptyStates) {
+      const pruned = VocabEngine.pruneEmptyStates({ store: Store });
+      if (pruned) console.log('[vocab] pruned empty states:', pruned);
+    }
+  } catch (e) { console.warn('vocab prune fail', e); }
   App.applyTheme(Store.d.settings.theme);
   /* 【为什么要再 init 一次】speech.js 自己的 DOMContentLoaded 比这里更早触发，
    * 那时 Store.d 还是 null —— "非 Edge 也允许云端音色"这个设置读不到（非 Edge 用户

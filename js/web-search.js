@@ -315,10 +315,19 @@
     text = text.replace(BR_RE, '\n');
     text = text.replace(BLOCK_CLOSE_RE, '\n');
     text = text.replace(BLOCK_OPEN_RE, '\n');
-    text = text.replace(ANY_TAG_RE, '');        // 行内标签直接去掉，避免把英文单词切断
+    /* 【2026-10-29 修复】行内标签不能直接删掉：
+     * 一些听力原文页把每个单词包在 <span> 里（<span>That</span><span>sounds</span>），
+     * 标签一删就粘成 "Thatsoundsamazing"，AI 切出的原文/证据句与候选正文逐字对不上，
+     * 原文被整段丢弃，而同一份'没核验'的正文又被拿去抽题干 → 写出
+     * "*M*:Thatsoundsamazing.Doyouhavetorelocate?" 这类假题干（用户 2026-10-29 报错）。
+     * 改成用空格分隔，再收紧标点前的空白，英文单词就不会跨标签粘连。*/
+    text = text.replace(ANY_TAG_RE, ' ');
     text = decodeEntities(text);
     text = text.split('\n').map(function (line) {
-      return line.replace(/[\t\f\v\u00a0 ]+/g, ' ').trim();
+      return line
+        .replace(/[\t\f\v\u00a0 ]+/g, ' ')
+        .replace(/\s+([,.;:!?%])/g, '$1')
+        .replace(/^\s+|\s+$/g, '');
     }).filter(function (line, i, all) {
       /* 保留段落之间至多一个空行；行首行尾空行去掉 */
       if (line) return true;
@@ -663,6 +672,98 @@
     return { results: results, errors: errors, tried: tried };
   }
 
+  /* ---------------- 直连原文源（按页面 URL 规律，2026-10-29） ---------------- */
+
+  /* 「自动联网补全原文」过去只靠搜索引擎召回：实测 2025-06 六级第 1 套原文页
+   * （懒笔记 english-exam.lazynote.cn）明明存在，但 Bing/百度/搜狗/360 在当期都可能
+   * 返回广告页/无关 docx，导致原文补不进来、题干只能从错误正文里硬抽。
+   * 这里按已知站的 URL 规律先直连一次（失败再回退搜索），把“能确定地址的原文”补上。*/
+  const DIRECT_SOURCES = [
+    {
+      id: 'lazynote',
+      name: '懒笔记',
+      host: 'english-exam.lazynote.cn',
+      path: function (type, year, month, setNo) {
+        var mm = month < 10 ? '0' + month : String(month);
+        return '/' + type + '/sections/listening/' + year + '-' + mm + '-' + setNo + '/';
+      },
+    },
+  ];
+
+  /** 按试卷身份生成直连原文页 URL（纯函数）：cet4/cet6 + 年 + 月 + 套号。 */
+  function transcriptPageUrls(meta) {
+    const m = meta && typeof meta === 'object' ? meta : {};
+    const type = String(m.type || '').toLowerCase();
+    if (type !== 'cet4' && type !== 'cet6') return [];
+    const year = yearOf(m.year);
+    const month = monthOf(m.session);
+    if (!year || !month) return [];
+    const setNo = setNoOf(m.setNo);
+    const sets = setNo ? [setNo] : [1, 2, 3];   // 没识别出套号时依次试 1~3 套
+    const out = [];
+    for (let s = 0; s < DIRECT_SOURCES.length; s++) {
+      const src = DIRECT_SOURCES[s];
+      for (let i = 0; i < sets.length; i++) {
+        const n = sets[i];
+        out.push({
+          source: src.id,
+          host: src.host,
+          url: 'https://' + src.host + src.path(type, year, month, n),
+          title: year + '年' + month + '月 ' + type.toUpperCase() + ' 第' + n + '套 听力原文（' + src.name + '）',
+          setNo: n,
+        });
+      }
+    }
+    return out;
+  }
+
+  /**
+   * 直连已知原文站的候选页并抽正文。失败不抛异常，把原因放进 errors 交给调用方回退搜索。
+   * @returns {Promise<{text:string,sources:Array,blocks:Array,errors:Array,tried:number}>}
+   */
+  async function collectDirectTranscript(meta, opts) {
+    const options = opts && typeof opts === 'object' ? opts : {};
+    const timeoutMs = positiveInt(options.timeoutMs, REQUEST_TIMEOUT, 1, 120000);
+    const maxUrls = positiveInt(options.maxUrls, 4, 1, 10);
+    const targets = transcriptPageUrls(meta).slice(0, maxUrls);
+    const sources = [];
+    const blocks = [];
+    const errors = [];
+    let tried = 0;
+    let requireMatch = null;
+    if (options.requireMatch instanceof RegExp) requireMatch = options.requireMatch;
+    else if (typeof options.requireMatch === 'string' && options.requireMatch) {
+      try { requireMatch = new RegExp(options.requireMatch, 'i'); } catch (e) { requireMatch = null; }
+    }
+    for (let i = 0; i < targets.length; i++) {
+      const target = targets[i];
+      tried++;
+      let page;
+      try {
+        page = await fetchPage(target.url, timeoutMs);
+      } catch (error) {
+        errors.push({ url: target.url, error: describeError(error), source: target.source });
+        continue;
+      }
+      if (!isHtmlContentType(page.contentType)) {
+        errors.push({ url: target.url, error: 'non-html' + (page.contentType ? ' (' + page.contentType + ')' : ''), source: target.source });
+        continue;
+      }
+      let text = '';
+      try { text = extractArticleText(page.text); } catch (err) { text = ''; }
+      if (!text) { errors.push({ url: target.url, error: 'empty', source: target.source }); continue; }
+      if (text.length < MIN_ARTICLE_TEXT) { errors.push({ url: target.url, error: 'too-short', source: target.source }); continue; }
+      if (requireMatch && !requireMatch.test(text)) { errors.push({ url: target.url, error: 'off-topic', source: target.source }); continue; }
+      const finalUrl = String(page.url || target.url);
+      sources.push({ url: finalUrl, title: target.title, len: text.length, source: target.source, setNo: target.setNo });
+      blocks.push({ url: finalUrl, title: target.title, text: text, len: text.length, source: target.source });
+    }
+    let text = blocks.map(function (b) { return '来源 URL：' + b.url + '\n' + b.text; }).join('\n\n');
+    const maxChars = positiveInt(options.maxChars, DEFAULT_MAX_CHARS, 500, 200000);
+    if (text.length > maxChars) text = text.slice(0, maxChars);
+    return { text: text, sources: sources, blocks: blocks, errors: errors, tried: tried };
+  }
+
   /**
    * 组合 buildQueries + searchWeb，把命中页正文按 score 降序拼成一段。
    * 每页前加“来源 URL：”，总长不超过 opts.maxChars（默认 24000）。
@@ -723,6 +824,8 @@
     redirectTarget: redirectTarget,
     searchWeb: searchWeb,
     collectTranscriptText: collectTranscriptText,
+    transcriptPageUrls: transcriptPageUrls,
+    collectDirectTranscript: collectDirectTranscript,
     engines: ENGINE_ORDER.slice(),
   };
 

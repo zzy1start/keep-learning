@@ -81,6 +81,56 @@ function isDialogueMaterial(paper, kindHint) {
   return /conversation|dialogue|对话/.test(text);
 }
 
+/**
+ * 一行听力原文的「轮次 / 说话人」标签正则。
+ * 联网抓到的 Tapescript 常把轮次号和说话人写在一起（来源页的段号 span + "M:"）：
+ *   "1M: Hello, doctor." · "2W：…" · "3 M: …" · "4. Woman: …" · "W5: …" · "Speaker 1: …"
+ * 规则：说话人标记**必须带冒号**；冒号前允许 1-3 位轮次号（可带 .、)）(（ 等前后缀），
+ * 也允许说话人后面跟轮次号（W1 / Speaker 2）。不含说话人标记的行（题目说明、
+ * "1.5 million …" 这类正文）一律不匹配——宁可少剥，也不能误删正文。
+ */
+const SPEAKER_TAG_RE = new RegExp(
+  '^[\\s\\[\\]()（）]*'
+  + '(?:\\d{1,3}\\s*[.、)）\\]】:：\\-–—]?\\s*)?'
+  + '(speaker\\s*\\d{1,2}|narrator|woman|man|male|female|w|m|a|b)'
+  + '(?:\\s*\\d{1,2})?'
+  + '\\s*[:：]\\s*',
+  'i');
+
+/**
+ * 拆出一行的说话人标签（只处理行首）。
+ * @param {string} line
+ * @returns {{sp:string, text:string}|null} sp: 'M'|'W'|''（无法判定性别时为空）；不是标签返回 null
+ */
+function parseSpeakerLabel(line) {
+  const raw = String(line == null ? '' : line);
+  const m = raw.match(SPEAKER_TAG_RE);
+  if (!m) return null;
+  const tag = String(m[1] || '').replace(/\s+/g, '').toUpperCase();
+  const sp = (tag === 'M' || tag === 'MAN' || tag === 'MALE') ? 'M'
+    : (tag === 'W' || tag === 'WOMAN' || tag === 'FEMALE') ? 'W' : '';
+  return { sp: sp, text: raw.slice(m[0].length) };
+}
+
+/**
+ * 题干文本规范化：去掉开头的题号（"Question 5." / "5."）与「3M:/2W:」这类说话人标记。
+ * 【为什么】四六级卷面不印题干，补全时会从 Tapescript 的口播行里抽取，
+ * 抽到的常是 "3M: So then why do I feel so poorly?" —— 播放时又被拼成
+ * "Question 1. 3M: …"，等于把说话人标记念了出来（用户反馈的 1W/2M 也会出现在题干里）。
+ * 显示与朗读都走这里；题库存下的原文不改，仍可追溯。
+ */
+function cleanStemText(raw) {
+  let text = String(raw == null ? '' : raw).replace(/\s+/g, ' ').trim();
+  if (!text) return '';
+  text = text
+    .replace(/^question\s*\d{1,3}\s*[.、．:：)）]?\s*/i, '')
+    .replace(/^\d{1,3}\s*[.、．)）]\s*/, '')
+    .trim();
+  const parsed = parseSpeakerLabel(text);
+  if (parsed) text = parsed.text.trim();
+  return text;
+}
+
 /** 按行交替分配男女声：第 1 行（下标 0）男声，第 2 行女声…… */
 function alternateGenders(count) {
   const n = Math.max(0, Math.floor(Number(count) || 0));
@@ -227,6 +277,9 @@ const ViewListen = {
        * Store.d.lsnPatch；补丁要赶在 Picker 计数与渲染之前生效，否则界面还按"原始导入数据"
        * 显示成"明明补过还是缺"。共享副本 id 形如 xxx-shared-2，模块内部会回退到原篇目补丁。*/
       this._applyPatches(pool);
+      /* 【2026-10-29】清掉旧版本写坏的题干（原文对白被当成"原文口播题干"）。
+       * 只清行首说话人标记/多问句的泄漏，真实题干不动；清完会重新触发自动补全。 */
+      this._sanitizeStems(pool);
     }
     const filt = type ? Picker.filter(pool, this.sel || { year: 'all', session: 'all', no: 'all' }) : pool;
     const shared = filt.find(p => p && p.sharedListening);
@@ -771,8 +824,8 @@ const ViewListen = {
       ${afLine}<div class="sec-t">听力原文（写模式已隐藏文字，仅可听）</div>
         <div class="hidden-locked">
           ${lines.map((l, i) => `<div class="script-line" data-say="${esc(l.en)}" style="padding-right:76px">
-            <span class="n">${l.sp || (i + 1)}</span>
-            <span class="t">${l.sp ? `<b class="sp">${esc(l.sp)}</b>` : ''}${this._wSpan(l.en)}</span>
+            <span class="n">${i + 1}</span>
+            <span class="t">${l.sp ? `<b class="sp">${esc(l.sp)}</b> ` : ''}${this._wSpan(l.en)}</span>
             <button class="btn btn-xs btn-gh play-btn-sm" data-say="${esc(l.en)}"
               style="position:absolute;right:10px;top:9px" title="复现这句">
               <svg viewBox="0 0 24 24" class="ic ic-sm">▶</svg>播放</button>
@@ -785,8 +838,8 @@ const ViewListen = {
     <div class="sec-t">原文与复现（点击任意句子可单独复现）</div>
       <div style="max-height:330px;overflow-y:auto" id="scriptLines">
       ${lines.map((l, i) => `<div class="script-line" data-say="${esc(l.en)}">
-        <span class="n">${l.sp || (i + 1)}</span>
-        <span class="t">${l.sp ? `<b class="sp">${esc(l.sp)}</b>` : ''}${this._wSpan(l.en)}
+        <span class="n">${i + 1}</span>
+        <span class="t">${l.sp ? `<b class="sp">${esc(l.sp)}</b> ` : ''}${this._wSpan(l.en)}
         ${l.cn ? `<span class="cn">${esc(l.cn)}</span>` : ''}</span>
         <button class="btn btn-xs btn-gh play-btn-sm" data-say="${esc(l.en)}" title="复现这句">
           <svg viewBox="0 0 24 24" class="ic ic-sm">▶</svg>播放</button>
@@ -837,6 +890,26 @@ const ViewListen = {
     if (!p) return false;
     if (!((p.script && p.script.length) || 0)) return true;
     return this._stemCounts(p).missing > 0;
+  },
+
+  /** 清理旧版本写坏的题干（见 js/listening-autofill.js sanitizeStems）：
+   *  页面加载/重建时先清数据，再按"缺题干"重新渲染并触发一次自动补全。
+   *  只动被判定为原文对白泄漏的题干，正常题干不受影响。*/
+  _sanitizeStems(papers) {
+    const AF = this._autofill();
+    if (!AF || typeof AF.sanitizeStems !== 'function' || !Array.isArray(papers) || !papers.length) return 0;
+    let patches = {};
+    try {
+      patches = (typeof AF.readPatches === 'function')
+        ? AF.readPatches(typeof Store !== 'undefined' ? Store : null) : {};
+    } catch (e) { patches = {}; }
+    let n = 0;
+    try { n = Number(AF.sanitizeStems(papers, patches)) || 0; } catch (e) { n = 0; }
+    if (n) {
+      /* 内容来自 contentBackup 的同一批对象引用：改完必须落盘，否则重启又回来 */
+      try { if (typeof Store !== 'undefined' && Store.flush) Store.flush(); } catch (e) { /* ignore */ }
+    }
+    return n;
   },
 
   /** run() 写补丁用的篇目：共享副本（id 形如 xxx-shared-2）借用原篇目的 id。
@@ -1014,6 +1087,17 @@ const ViewListen = {
     return '';
   },
 
+  /** 题干来源对应的"核验说明"：只陈述这条来源真实经过的核对。
+   *  旧文案一律写"经同套听力逐字核对"，可题干来自原文/联网时并没有做过同套核对，
+   *  用户看到"题干已齐全"却是一句原文对白，就会觉得程序在骗人。*/
+  _stemVerifyNote(src) {
+    if (src === 'set') return '题干来自同套另一份卷子已印的题干，选项与答案没有改动。';
+    if (src === 'transcript') return '题干逐字取自本篇听力原文（原卷口播），选项与答案没有改动。';
+    if (src === 'ai') return '题干由 AI 从本篇原文提取，并已逐字回查原文；选项与答案没有改动。';
+    if (src === 'web') return '题干来自联网检索到的公开题目页，并已比对本题选项；选项与答案没有改动。';
+    return '选项与答案没有改动。';
+  },
+
   /** 原文卡片状态行：检索/核验的实时状态、结果来源、或没补到的具体原因。 */
   _afScriptStatusHTML(p, st) {
     const hasScript = !!(p && Array.isArray(p.script) && p.script.length);
@@ -1066,7 +1150,7 @@ const ViewListen = {
     if (!cnt.missing) {
       if (!src) return '';
       return tip('题干已齐全' + (got ? '（本次补全 ' + got + ' 题）' : '') + '，来源：' + esc(src) + '。'
-        + '<br><span style="color:var(--tx3)">补入的题干经同套听力逐字核对，选项与答案没有改动。</span>', true);
+        + '<br><span style="color:var(--tx3)">' + esc(this._stemVerifyNote(src)) + '</span>', true);
     }
     let head;
     if (got || src) {
@@ -1149,7 +1233,7 @@ const ViewListen = {
       const rng = String((p && p.title) || '').match(/questions?\s*(\d+)\s*(?:to|[-–—~])\s*(\d+)/i);
       no = rng ? Number(rng[1]) + i : i + 1;
     }
-    return { no, text: placeholder ? '' : raw, missing: placeholder };
+    return { no, text: placeholder ? '' : cleanStemText(raw), missing: placeholder };
   },
 
   _renderQuiz(box, qs, key) {
@@ -1588,8 +1672,12 @@ const ViewListen = {
       const s = $('#spd', box);
       return s ? +s.value : (Store.d.settings.speechRate || 1);
     };
-    // 当前段落（长篇=整篇；单句/对话=逐句）
-    const lines = $$('.script-line', box).map(x => ({ el: x, text: x.dataset.say || '' }));
+    /* 当前段落（长篇=整篇；单句/对话=逐句）。
+     * 【必须在点击时现取，不能绑定时快照】进篇后自动补全（原文/题干）是异步完成的，
+     * 页面只做局部重渲染（_refreshPassage），不会重绑这里的事件；绑定时快照成常量的话，
+     * 补全后点播放读到的还是补全前的空数组——原文一步被跳过，直接进题干播报。
+     * 用户反馈「补充听力后点播放只播题干」就是这个原因。*/
+    const linesNow = () => $$('.script-line', box).map(x => ({ el: x, text: x.dataset.say || '' }));
     /* 有题目时主播放按钮按考场顺序：原文 → 逐题题干；没有题目（单句/对话）行为不变。
      * 注意题干要**点击时**才取（_bindCommon 早于 _renderQuiz 执行，快照会是空的）。*/
     /* 考试参数在**点击时**读取（页面上可改；改动会写入设置） */
@@ -1641,13 +1729,15 @@ const ViewListen = {
      * 只依赖 DOM 曾导致"点了播放只读原文"：题干是 _renderQuiz 渲染的，
      * 任何让查询落空的时序/结构变化都会静默失败。题库数据 p.qs 一定存在，
      * 因此这里用数据兜底，并在状态行里说明用的是哪一种。*/
-    const dataStems = (item && Array.isArray(item.qs)) ? item.qs.map((q, i) => ({
+    /* 题库兜底也要**每次现取**：item.qs 会被自动补全原地更新（补上题干），
+     * 绑定时算好的快照会漏掉补进来的题干。*/
+    const dataStems = () => ((item && Array.isArray(item.qs)) ? item.qs.map((q, i) => ({
       text: (i + 1) + '. ' + String((q && q.q) || ''),
       opts: (q && Array.isArray(q.opts)) ? q.opts.slice() : [],
-    })) : [];
+    })) : []);
     const stemsNow = () => {
       const dom = this._quizStems(box);
-      return (dom && dom.length) ? dom : dataStems;
+      return (dom && dom.length) ? dom : dataStems();
     };
     const setStatus = msg => {
       const el = $('#playStatus', box);
@@ -1664,11 +1754,11 @@ const ViewListen = {
     /* 单句听力的播放：只播这一句**英文原文**（走 _playLines，保留逐词高亮）。
      * 不套"考场顺序"：单句本来就没有题干，那条路径会去找题干并提示
      * "这道材料没有题目数据，只播原文"（用户看到的就是"读完就结束 + 一句莫名其妙的提示"）。*/
-    const playSentence = session => this._playLines(lines, { rate: rate(), leadIn: listenLeadInMs(), session });
+    const playSentence = session => this._playLines(linesNow(), { rate: rate(), leadIn: listenLeadInMs(), session });
 
     const playExam = opts => {
       Speech.primeAudio();   // 点击手势里预热音频上下文，否则提示音播不出来
-      return this._playExamOrder(lines, stemsNow(),
+      return this._playExamOrder(linesNow(), stemsNow(),
         Object.assign({
           readOptions: examReadOptions(), gapMs: examPauseMs(), chime: examChime(), status: setStatus,
           endSay: examEndSay(), endText: Store.d.settings.listenEndText,
@@ -1712,7 +1802,7 @@ const ViewListen = {
               /* 单句听力也走 playSentence()：只播这一句英文原文，不报题干、不报结尾语 */
               const run = (this.kind === 'sentence')
                 ? playSentence(session)
-                : this._playLines(lines, { rate: rate(), session });
+                : this._playLines(linesNow(), { rate: rate(), session });
               run.then(() => {
                 if (this.playing && this._playCurrent(session)) setTimeout(loop, 450);
               });
@@ -1722,7 +1812,7 @@ const ViewListen = {
           break;
         }
         case 'stop': this.stopHL(); t.textContent = '停止'; break;
-        case 's2s': this._seqRead(lines, rate()); break;
+        case 's2s': this._seqRead(linesNow(), rate()); break;
         case 'prev': case 'next': {
           // 长篇切换篇目；单句/对话切换句段
           if (['cet4', 'cet6'].includes(this.kind)) {
@@ -1964,10 +2054,11 @@ const ViewListen = {
       if (!this._playCurrent(session)) return;
       stems.forEach(x => x.classList && x.classList.remove('ask'));
       if (stems[i].classList) stems[i].classList.add('ask');
-      // 题干自带 "1. " 前缀，播报时去掉，避免读成 "Question 1. 1. …"
+      /* 题干自带 "1. " 前缀 / "3M:" 说话人标记，播报时都要去掉：
+       * 否则会读成 "Question 1. 1. 3M: …"（见 cleanStemText）。*/
       const item = stems[i] || {};
       const raw = item.text != null ? item.text : item.textContent;
-      const body = String(raw || '').replace(/^\s*\d+\s*[.、．]\s*/, '').trim();
+      const body = cleanStemText(raw);
       /* 选项默认不读：真题 Directions 原文是
        * "Both the news report and the questions will be spoken only once.
        *  After you hear a question, you must choose the best answer from the four
@@ -2463,22 +2554,21 @@ const ViewListen = {
     this._lastHL = null;
   },
 
-  /** 从「M:/W:/Man:/Woman:/Male:/Female:」这类说话人前缀里拆出性别，并从**显示/朗读文本**里去掉前缀。
-   * 内置数据本来就有 sp 字段；导入的原文/AI 文本常把标签写在正文里，不处理会念出“W colon”，
-   * 也没法男女对读（用户要求导入听力按文本男女对问）。*/
+  /** 从「1M:/2W:/M:/W:/Man:/Woman:/Speaker 1:」这类说话人前缀里拆出性别，
+   * 并从**显示/朗读文本**里去掉前缀。
+   * 内置数据本来就有 sp 字段；导入的原文/AI 文本常把标签写在正文里，不处理会念出“1 M”
+   * （用户反馈：从网上识别后播放会读前面的 1W、2M），也没法男女对读。
+   * 解析规则集中在 parseSpeakerLabel()：轮次号 + 说话人、说话人 + 轮次号都认，
+   * 但**必须带冒号**，正文里的数字/字母不会被误删。*/
   _normalizeSpeakerLines(lines) {
     if (!Array.isArray(lines)) return [];
-    const RE = /^\s*(M|W|MAN|WOMAN|MALE|FEMALE)\s*[:：]\s*/i;
     return lines.map(l => {
       if (!l) return l;
       const en = String(l.en == null ? (l.text == null ? '' : l.text) : l.en);
-      const m = en.match(RE);
-      if (!m) return l;
-      const tag = m[1].toUpperCase();
-      const sp = (tag === 'M' || tag === 'MAN' || tag === 'MALE') ? 'M'
-        : (tag === 'W' || tag === 'WOMAN' || tag === 'FEMALE') ? 'W' : (l.sp || '');
-      const clean = en.replace(RE, '');
-      return Object.assign({}, l, { en: clean, text: clean, sp: sp || l.sp || '' });
+      const parsed = parseSpeakerLabel(en);
+      if (!parsed) return l;
+      const sp = parsed.sp || l.sp || '';
+      return Object.assign({}, l, { en: parsed.text, text: parsed.text, sp: sp });
     });
   },
 

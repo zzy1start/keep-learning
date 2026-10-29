@@ -115,8 +115,8 @@ const stems = qs => qs.map((q, i) => ({
     const iBind = src.indexOf('this._bindCommon(box, lines.map(l => l.en).join');
     const iQuiz = src.indexOf('this._renderQuiz(box, p.qs, p.id)');
     assert.ok(iBind > 0 && iQuiz > iBind, '_bindCommon 应早于 _renderQuiz（这正是快照为空的原因）');
-    assert.ok(/this\._playExamOrder\(lines, stemsNow\(\),/.test(src),
-      '播放时必须实时取题干（stemsNow()），不能把题干快照成常量');
+    assert.ok(/this\._playExamOrder\(linesNow\(\), stemsNow\(\),/.test(src),
+      '播放时必须实时取原文（linesNow()）与题干（stemsNow()），不能把快照成常量');
     assert.ok(/const stemsNow = \(\) => \{/.test(src) && /this\._quizStems\(box\)/.test(src),
       'stemsNow 应实时查 DOM（并以题库数据兜底）');
     assert.ok(!/const stems = \$\$\('#quizCard/.test(src), '不该再出现题干快照');
@@ -363,6 +363,15 @@ const stems = qs => qs.map((q, i) => ({
     assert.equal(m1.view._quizStems({}).length, 1, 'box 内找到时用 box 内的');
     const m2 = makeView({ inBox: [], global: stemsGlobal });
     assert.equal(m2.view._quizStems({}).length, 2, 'box 内没有应回退到全文档');
+  });
+
+  await check('★ 题干带口播说话人标记时：播报不能念「3M:」', async () => {
+    const m = makeView();
+    await m.view._playExamOrder([{ text: 'A.' }],
+      [{ textContent: '1. 3M: So then why do I feel so poorly?', classList: { add() {}, remove() {} } }],
+      { gapMs: 0, chime: false, endSay: false });
+    const q = m.calls.find(c => c[0] === 'q');
+    assert.equal(q[1], 'Question 1. So then why do I feel so poorly?', '实际 ' + q[1]);
   });
 
   if (failed) process.exitCode = 1;
