@@ -29,6 +29,9 @@ jobs:
       - name: Check audio pack (skips when lite)
         run: node tools/check-audio-pack.cjs
 
+      - name: Check brand icons (Android launcher/splash)
+        run: node tools/check-brand-res.cjs
+
       - name: Check import pipeline
         run: node tools/check-import-pipeline.cjs
 

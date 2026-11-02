@@ -42,16 +42,18 @@ const warn = (m) => log(`  ${c.yellow}!${c.reset} ${m}`);
 const die = (m) => { log(`  ${c.red}✗ ${m}${c.reset}`); process.exit(1); };
 
 /* ---------------------------------------------------------------- 工具 */
-/* Windows 上直接 spawn `npx.cmd` 会抛 EINVAL（status=null，非真实退出码）：
- * Node 出于安全收紧拒绝直接执行 .cmd 批处理文件，必须经 cmd.exe /c 转发。
- * 这里统一走 shell，避开该限制。 */
-function runNpx(args, opts = {}) {
-  const isWin = process.platform === 'win32';
-  const cmd = isWin ? 'npx.cmd' : 'npx';
-  return execFileSync(cmd, args, {
+/* 直接用当前 node 执行 node_modules 里的 @capacitor/cli，不依赖 npx/npm 在 PATH：
+ * - 精简 Node 发行版（例如只带 node.exe 的运行时）没有 npx.cmd；
+ * - Windows 上直接 spawn `npx.cmd` 还会抛 EINVAL（Node 拒绝直接执行 .cmd 批处理）。
+ * Capacitor CLI 入口是普通 JS（带 shebang），用 process.execPath 执行最稳。 */
+function runCap(args, opts = {}) {
+  const cliBin = path.join(ROOT, 'node_modules', '@capacitor', 'cli', 'bin', 'capacitor');
+  if (!fs.existsSync(cliBin)) {
+    die('未找到 @capacitor/cli 入口：' + cliBin + '（请先 npm install）');
+  }
+  return execFileSync(process.execPath, [cliBin, ...args], {
     stdio: 'inherit',
     cwd: ROOT,
-    ...(isWin ? { shell: true } : {}),
     ...opts,
   });
 }
@@ -110,18 +112,18 @@ if (fs.existsSync(ANDROID)) {
   ok('已清理');
 }
 
-step('npx cap add android');
+step('cap add android（使用本地 @capacitor/cli）');
 try {
-  runNpx(['cap', 'add', 'android']);
+  runCap(['add', 'android']);
   ok('android 工程已创建');
 } catch (e) {
   die('cap add android 失败。请检查 Node/JDK 版本与网络（需拉取 @capacitor/android）');
 }
 
 /* --------------------------------------------- 3. cap sync */
-step('npx cap sync android');
+step('cap sync android（使用本地 @capacitor/cli）');
 try {
-  runNpx(['cap', 'sync', 'android']);
+  runCap(['sync', 'android']);
   ok('依赖已同步');
 } catch (e) {
   warn('cap sync 失败，请手动重试：npx cap sync android');
@@ -190,6 +192,19 @@ if (fs.existsSync(wrapperProps)) {
   }
 } else {
   warn('未找到 gradle-wrapper.properties，跳过 wrapper 配置修正');
+}
+
+/* ------------------------- 6.6 安装品牌图标与开屏启动页 */
+/* Capacitor 模板自带的是默认蓝色 X 图标/启动页；本项目的 ZY 品牌素材在
+ * native/android/brand-res/，必须覆盖，否则重建出的 APK 桌面图标会退回默认素材
+ * （1.1.48 事故根因：工程重建后图标被模板覆盖）。 */
+step('安装品牌图标/启动页');
+try {
+  execFileSync(process.execPath, [path.join(ROOT, 'tools', 'install-brand-res.cjs')], {
+    stdio: 'inherit', cwd: ROOT,
+  });
+} catch (e) {
+  die('install-brand-res.cjs 执行失败：' + e.message);
 }
 
 /* --------------------------------------------- 7. 正式签名配置 */

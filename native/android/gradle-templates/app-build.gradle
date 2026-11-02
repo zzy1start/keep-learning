@@ -20,8 +20,8 @@ android {
         applicationId "com.keeplrn.tablet"
         minSdkVersion rootProject.ext.minSdkVersion
         targetSdkVersion rootProject.ext.targetSdkVersion
-        versionCode 72
-        versionName "1.1.48"
+        versionCode 73
+        versionName "1.1.49"
         testInstrumentationRunner "androidx.test.runner.AndroidJUnitRunner"
         ndk { abiFilters 'arm64-v8a' }
         aaptOptions {
