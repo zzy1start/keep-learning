@@ -1,0 +1,115 @@
+<!DOCTYPE html>
+<html lang="zh-CN"><head><meta charset="utf-8">
+<title>已做标识 · 方案样板</title>
+<link rel="stylesheet" href="../../css/base.css">
+<link rel="stylesheet" href="../../css/modules.css">
+<style>
+  body{overflow:auto;background:var(--bg);padding:26px 30px 40px}
+  .wrap{max-width:1080px;margin:0 auto}
+  h1{font-size:24px;font-weight:750;letter-spacing:-.3px}
+  .lead{color:var(--tx2);margin:6px 0 20px;font-size:13.5px;line-height:1.8}
+  .plan{margin-bottom:18px}
+  .plan .card-h{font-size:15px}
+  .plan .tag{font-weight:600}
+  .demo{margin-top:12px;padding:14px;border-radius:12px;background:var(--card2);border:1px solid var(--line)}
+  .demo + .demo{margin-top:12px}
+  .demo-t{font-size:12px;color:var(--tx3);margin-bottom:9px;letter-spacing:.3px}
+  .part-tabs{display:flex;gap:6px;overflow:visible;flex-wrap:wrap;padding:0;margin:0}
+  .part-tab{max-width:330px;text-align:left;line-height:1.45}
+  .part-tab .flag{color:var(--ok);font-weight:750}
+  .part-tab.is-done{opacity:.56}
+  .part-tab.is-done.on{opacity:.92}
+  .part-tab.is-done .t{text-decoration:none}
+  .faux{background:var(--card);border:1px solid var(--line2);border-radius:11px;overflow:hidden;max-width:640px;box-shadow:0 6px 18px rgba(20,35,80,.06)}
+  .faux .opt{display:flex;align-items:center;gap:8px;padding:9px 13px;font-size:13.5px;border-bottom:1px solid var(--line)}
+  .faux .opt:last-child{border-bottom:0}
+  .faux .opt.sel{background:var(--pri-l);color:var(--pri);font-weight:600}
+  .faux .opt .sp{flex:1}
+  .faux .meta{font-size:12px;color:var(--ok);font-weight:700;white-space:nowrap}
+  .faux .meta.dim{color:var(--tx3);font-weight:500}
+  .faux .sep{height:1px;background:var(--line2);margin:3px 0}
+  .pick-h{display:flex;align-items:center;gap:8px;flex-wrap:wrap;font-weight:650;font-size:14.5px;margin-bottom:10px}
+  .pick-h .r{margin-left:auto;display:flex;gap:6px;align-items:center}
+  .only{display:inline-flex;align-items:center;gap:6px;font-size:12.5px;color:var(--tx2);background:var(--card);border:1px solid var(--line2);border-radius:20px;padding:4px 12px;cursor:pointer}
+  .only input{width:15px;height:15px;accent-color:var(--pri)}
+  .note{font-size:12px;color:var(--tx3);margin-top:9px;line-height:1.7}
+  .rec{display:inline-flex;align-items:center;gap:6px;background:var(--ok-l);color:var(--ok);border-radius:8px;padding:3px 10px;font-size:12px;font-weight:700}
+  .legend{display:flex;gap:16px;flex-wrap:wrap;font-size:12px;color:var(--tx3);margin-top:6px}
+  .legend b{color:var(--tx2)}
+  .dot{display:inline-block;width:8px;height:8px;border-radius:50%;background:var(--ok);margin-right:5px;vertical-align:1px}
+</style></head>
+<body><div class="wrap">
+  <h1>「已做过」标识 · 3 种方案样板</h1>
+  <div class="lead">目标：回来二刷时，一眼看出哪些套卷 / 篇目已经做过，又不打断做题流程。下面用平板当前真实数据（听力 44 篇 / 2023 年 12 月第 1 套已做 1 篇）做样板。</div>
+
+  <div class="card plan">
+    <div class="card-h">方案 A · 变暗 + 勾 <span class="tag tag-pri">最轻量</span><span class="r tag">只改渲染</span></div>
+    <div class="card-b">
+      <div class="hint">已做篇目整块降透明度，行尾追加「✓已做 85%」；正在看的那篇保持正常亮度，避免"选中了却看不清"。</div>
+      <div class="demo">
+        <div class="demo-t">篇目快捷标签（听力页顶部）</div>
+        <div class="part-tabs">
+          <button class="part-tab on"><span class="yr">2023 年 6 月卷</span>第1篇 · The Rise of Online Learning</button>
+          <button class="part-tab is-done"><span class="yr">2023 年 12 月卷 · 第1套</span>第1篇 · Conversation 1 <span class="flag">✓已做 85%</span></button>
+          <button class="part-tab is-done"><span class="yr">2023 年 12 月卷 · 第1套</span>第2篇 · Conversation 2 <span class="flag">✓已做 60%</span></button>
+          <button class="part-tab"><span class="yr">2023 年 12 月卷 · 第1套</span>第3篇 · Passage 1</button>
+        </div>
+        <div class="legend"><span><span class="dot"></span><b>高亮</b> = 未做</span><span><b style="opacity:.45">灰</b> = 已做，仍可点开重做</span></div>
+      </div>
+    </div>
+  </div>
+
+  <div class="card plan">
+    <div class="card-h">方案 B · 套卷进度 + 分数 <span class="rec">推荐</span><span class="r tag tag-ok">信息最全</span></div>
+    <div class="card-b">
+      <div class="hint">在「月份 / 套别」下拉选项后追加整卷进度（已做几篇），在「篇目」选项后追加本篇得分。不做任何数据迁移，直接读现有听力 / 阅读记录。</div>
+      <div class="demo">
+        <div class="demo-t">场次下拉（展开示意）</div>
+        <div class="faux">
+          <div class="opt"><span>2023 年 12 月卷 · 全部套</span><span class="sp"></span><span class="meta">已做 1/15 篇</span></div>
+          <div class="opt sel"><span>2023 年 12 月卷 · 第1套</span><span class="sp"></span><span class="meta">已做 1/7 篇</span></div>
+          <div class="opt"><span>2023 年 12 月卷 · 第2套</span><span class="sp"></span></div>
+          <div class="opt"><span>2023 年 12 月卷 · 第3套</span><span class="sp"></span></div>
+        </div>
+      </div>
+      <div class="demo">
+        <div class="demo-t">篇目下拉（展开示意）</div>
+        <div class="faux">
+          <div class="opt sel"><span>第 1 篇　Conversation 1</span><span class="sp"></span><span class="meta">✓已做 85%</span></div>
+          <div class="opt"><span>第 2 篇　Conversation 2</span><span class="sp"></span></div>
+          <div class="opt"><span>第 3 篇　Passage 1</span><span class="sp"></span><span class="meta dim">未做</span></div>
+          <div class="opt"><span>第 4 篇　Passage 2</span><span class="sp"></span><span class="meta dim">未做</span></div>
+        </div>
+        <div class="note">下拉里保留"未做"灰字只是示意；实际只在已做项追加绿色标记，避免 44 篇全是字。</div>
+      </div>
+      <div class="demo">
+        <div class="demo-t">选择器顶部（当前筛选范围内）</div>
+        <div class="pick-h"><span>按年份与篇章选择</span><span class="r"><span class="tag tag-pri">篇 4 / 4</span><span class="tag tag-ok">已做 2 / 4</span></span></div>
+      </div>
+    </div>
+  </div>
+
+  <div class="card plan">
+    <div class="card-h">方案 C · 进度徽章 + 只看未做 <span class="tag tag-warn">可选</span><span class="r tag">多做一步</span></div>
+    <div class="card-b">
+      <div class="hint">顶部常驻总进度，并加一个「只看未做」开关，把已做篇目从候选里隐藏（随时可关）。适合套卷多、想按顺序刷完的场景。</div>
+      <div class="demo">
+        <div class="pick-h"><span>按年份与篇章选择</span><span class="r"><span class="tag tag-pri">篇 44 / 44</span><span class="tag tag-ok">已做 13 / 44</span></span></div>
+        <div class="row" style="gap:10px">
+          <label class="only"><input type="checkbox" checked> 只看未做</label>
+          <span class="hint">已隐藏 13 篇；切换年份 / 套别时自动保持。</span>
+        </div>
+      </div>
+      <div class="note">该开关会改动筛选与"当前可用"计数，需要同时兼顾空结果、自动回退等边界，建议在 A/B 稳定后再加。</div>
+    </div>
+  </div>
+
+  <div class="card plan" style="border-color:var(--pri)">
+    <div class="card-h">建议落地顺序</div>
+    <div class="card-b hint" style="line-height:2">
+      1. <b>先做 A+B</b>：篇目变暗 + 行尾标记、套卷下拉显示「已做 x/y 篇」、篇目下拉显示得分、选择器顶部显示已做数。零数据迁移，当天可用。<br>
+      2. 听力 / 阅读先接（已有提交记录）；写作 / 翻译顺带接（按题目 id 匹配，旧记录按标题兜底）。<br>
+      3. C 的「只看未做」留作第二轮，等 A+B 真机看顺眼再加。
+    </div>
+  </div>
+</div></body></html>

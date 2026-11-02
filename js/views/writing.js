@@ -395,7 +395,10 @@ const ViewWrite = {
     </div>
 
     <div id="wrPicker">${hasPicker ? Picker.html({
-      items: all, partItems, sel: selection, unitWord: '题', ...this._pickerMeta(),
+      items: all, partItems, sel: selection, unitWord: '题',
+      /* 写作/翻译题只有单题，用 writeLog 记录判断"写过没有"；旧记录按题目文本兜底匹配。*/
+      statusOf: t => DoneBook.label('writing', t),
+      ...this._pickerMeta(),
     }) : ''}</div>
 
     <div class="read-type-tabs" role="tablist" aria-label="写作题型">
@@ -633,7 +636,7 @@ const ViewWrite = {
         this.sel = s; this._resetTaskState();
         this.curTask = Picker.filter(this._taskPool(), s)[0] || null;
         this._shell($('#view'));
-      }, { partItems: this._taskPool(), partById: true, unitWord: '题' });
+      }, { partItems: this._taskPool(), partById: true, unitWord: '题', statusOf: t => DoneBook.label('writing', t) });
     }
 
     if (!task) {
@@ -744,6 +747,7 @@ const ViewWrite = {
         this._memoFlush();             // 保存草稿时一并把当前文本记进最近记录
         Store.d.writeLog.unshift({
           id: Date.now(), at: new Date().toISOString(), task: task.title || task.en,
+          taskId: task.id == null ? '' : String(task.id),
           level: task.level || '练习', words: (this.essay.match(/[a-zA-Z']+/g) || []).length,
           text: this.essay, score: this.result ? this.result.score.total : null,
         });
@@ -915,6 +919,7 @@ const ViewWrite = {
     Store.addStat('write', 1);
     Store.d.writeLog.unshift({
       id: Date.now(), at: new Date().toISOString(), task: prompt,
+      taskId: task.id == null ? '' : String(task.id),
       level: task.level || '练习', words: (this.essay.match(/[a-zA-Z']+/g) || []).length,
       text: this.essay, score: r && r.score ? r.score.total : 0,
       max: totalScore, usedSec: this._usedSec || 0, hasImg,
@@ -1103,6 +1108,9 @@ function gradeHTML(r) {
   </div>
   <div class="sec-t">总体评价</div>
   ${r.imageWarning ? `<div class="ai-warn"><b>照片未用于本次评分</b><div class="ai-warn-msg">${esc(r.imageWarning)}</div></div>` : ''}
+  ${r.modelNote ? `<div class="tipbox" style="margin:10px 0"><b>模型说明</b>　${esc(r.modelNote)}</div>` : ''}
+  ${r.ocrText ? `<div class="tipbox" style="margin:10px 0"><b>照片识别结果</b>　<span class="hint">请核对是否与手写内容一致</span>
+    <div style="margin-top:6px;white-space:pre-wrap;line-height:1.75;max-height:220px;overflow:auto">${esc(r.ocrText)}</div></div>` : ''}
   ${r.degraded ? `<div class="ai-warn">
     <b>${AI.ready ? 'AI 调用失败' : '未启用 AI'}</b>
     <div class="ai-warn-msg">${esc(r.errMsg || (AI.ready ? '请求未能完成，请到设置页点「测试连接」查看详情。' : '本次为本地规则评分，精度有限。可在设置页填入 API Key。'))}</div>

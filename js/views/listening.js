@@ -317,6 +317,7 @@ const ViewListen = {
 
     <div id="lsnPicker">${type ? Picker.html({
       items: pool, sel: this.sel || {}, unitWord: '篇',
+      statusOf: p => DoneBook.label('listening', p),
       hint: '内置为仿真题，按真题「年份·场次·篇章」结构组织；也可导入自己的真题。',
       aiTip: '换年份/篇章后，当前作答会重置。',
     }) : ''}</div>
@@ -325,11 +326,16 @@ const ViewListen = {
 
     ${(type && this.shown.length > 1) ? `
     <div class="part-tabs">
-      ${this.shown.map((p, i) => `
-        <button class="part-tab ${i === 0 ? 'on' : ''}" data-pi="${i}">
-          <span class="yr">${fullLabel(p.year, p.session)}</span>
+      ${this.shown.map((p, i) => {
+        /* 已做篇目：整块变暗 + 行尾 `✓已做 85%`；正在看的那篇仍是主色高亮。*/
+        const mark = DoneBook.label('listening', p);
+        return `
+        <button class="part-tab ${i === 0 ? 'on' : ''} ${mark ? 'is-done' : ''}" data-pi="${i}" data-passid="${esc(String(p.id || ''))}">
+          <span class="yr">${fullLabel(p.year, p.session)}${p.setNo ? ' · 第' + p.setNo + '套' : ''}</span>
           第${p.no || i + 1}篇 · ${esc((p.title || '').slice(0, 16))}${p.mine ? '（导入）' : ''}
-        </button>`).join('')}
+          ${mark ? `<span class="done-flag">${esc(mark)}</span>` : ''}
+        </button>`;
+      }).join('')}
     </div>` : ''}
 
     <div id="lsnBody"></div>`;
@@ -339,7 +345,7 @@ const ViewListen = {
         this.sel = s;
         this.answers = {}; this.submitted = false; this._quizRevealed = false; this.piPass = 0;
         this._shell(root);
-      });
+      }, { statusOf: p => DoneBook.label('listening', p), unitWord: '篇' });
       on(root, 'click', '[data-pi]', (e, t) => {
         /* 切篇必须停掉上一篇正在朗读的语音，否则会继续播上一段。*/
         this._playAbort = true;
@@ -678,6 +684,7 @@ const ViewListen = {
     const paperKind = this._paperKind(p);
     /* 导入卷常见：只解析到选项、没有题干。头部先给一个数量提示。*/
     const missingStemCount = (p.qs || []).filter((q, i) => this._stemInfo(q, i, p).missing).length;
+    const doneRec = DoneBook.of('listening', p);
 
     /* 左右分栏：左边播放器 + 原文与复现，右边听力理解作答（如图3布局） */
     box.innerHTML = `
@@ -690,6 +697,7 @@ const ViewListen = {
               : p.setNo ? '<span class="tag">第 ' + p.setNo + ' 套</span>' : ''}
             <span class="tag ${isCet4 ? 'tag-ok' : 'tag-pri'}">${esc(p.level || '')}</span>
             ${paperKind ? `<span class="tag">${esc(paperKind)}</span>` : ''}
+            ${doneRec ? `<span class="tag tag-ok" title="${esc(DoneBook.detail('listening', p))}；重新提交会覆盖上次成绩">✓ 已做过 ${DoneBook.percent(doneRec)}%</span>` : ''}
             ${missingStemCount ? `<span class="tag tag-warn lsn-stem-tag" title="四六级听力卷面只印选项，题干只在录音中播报">卷面未印题干 ${missingStemCount}</span>` : ''}
             ${p.typeVerification === 'ai-verified'
               ? `<span class="tag tag-ok" title="${esc((p.typeEvidence || []).join('；'))}">AI 核验类型</span>`
@@ -1287,6 +1295,38 @@ const ViewListen = {
     if (this.submitted) this._ensureMissingExplains(p, qs, explains);
   },
 
+  /** 提交后原地刷新"已做"标记（快捷标签 + 篇目下拉 + 页头徽章）。 */
+  _paintDoneMarks(p, isFirstDone) {
+    if (!p || typeof DoneBook === 'undefined') return;
+    const mark = DoneBook.label('listening', p);
+    if (!mark) return;
+    try {
+      $$('.part-tab').forEach(t => {
+        if (t.dataset.passid !== String(p.id || '')) return;
+        t.classList.add('is-done');
+        if (!t.querySelector('.done-flag')) {
+          t.insertAdjacentHTML('beforeend', ' <span class="done-flag">' + esc(mark) + '</span>');
+        }
+      });
+      const sel = document.getElementById('pkNo');
+      if (sel) {
+        const want = String(p.no);
+        for (const opt of sel.options) {
+          if (opt.value === want && !/✓已做/.test(opt.textContent)) {
+            opt.textContent = opt.textContent + ' · ' + mark;
+            break;
+          }
+        }
+      }
+      const badge = document.querySelector('#lsnPicker .pk-done-count');
+      if (badge && isFirstDone) {
+        const m = badge.textContent.match(/已做\s*(\d+)\s*\/\s*(\d+)/);
+        if (m) badge.textContent = '已做 ' + (Number(m[1]) + 1) + ' / ' + m[2];
+        if (Number((m && m[1]) || 0) === 0) badge.classList.add('tag-ok');
+      }
+    } catch (e) { console.warn('paint done marks fail', e); }
+  },
+
   _bindQuiz(card, qs) {
     on(card, 'click', '.q-opt', (e, t) => {
       if (this.submitted) return;
@@ -1317,8 +1357,14 @@ const ViewListen = {
         const sc = this._score(qs);
         Store.d.listenLog = Store.d.listenLog || {};
         const p = this.shown && this.shown[this.piPass || 0];
+        /* 记录这篇在提交前是否已经做过：重复刷同一篇时页头"已做 x / y"
+         * 不能再加一（只有第一次做才 +1）。*/
+        const wasDone = !!(p && Store.d.listenLog[p.id]);
         if (p) Store.d.listenLog[p.id] = { at: Date.now(), score: sc, total: qs.length * 2.5 };
         Store.flush();
+        /* 本篇刚提交：把快捷标签与篇目下拉就地改成"已做"，不用整页重渲染
+         *（整页重建会打断正在看的解析与滚动位置）。*/
+        this._paintDoneMarks(p, !wasDone);
         Store.logActivity({
           kind: 'listen', seconds: this._pageSeconds(),
           correct: sc, total: qs.length * 2.5,

@@ -27,13 +27,17 @@
         if (typeof init.body !== 'string') return originalFetch(input, init); // FormData/Blob 不走原生桥
         try { data = JSON.parse(init.body); } catch (e) { return originalFetch(input, init); }
       }
+      /* 【超时口径】旧版把 connect/read 都写死 60s：推理型模型批改一篇翻译
+       * 或作文经常要 60-150 秒，原生层会先抛出 "timeout"，界面看到的就是
+       * 「翻译批改未完成：timeout」。读超时放宽到 5 分钟，连接超时保持 30s；
+       * 单次请求的 JS 侧超时由 AI.chat 的 AbortController 控制。*/
       const res = await Http.request({
         url,
         method,
         headers,
         data,
-        connectTimeout: 60000,
-        readTimeout: 60000,
+        connectTimeout: 30000,
+        readTimeout: 300000,
       });
       const body = typeof res.data === 'string' ? res.data : JSON.stringify(res.data == null ? '' : res.data);
       const outHeaders = {};

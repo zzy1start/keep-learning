@@ -66,7 +66,7 @@ const ViewRead = {
   _bindEmptyType(root, all) {
     Picker.bind(root, all, this.sel || {}, s => {
       this.sel = s; this.pi = 0; this._shell($('#view'));
-    }, { partItems: this._pickerParts(all), partById: true });
+    }, { partItems: this._pickerParts(all), partById: true, statusOf: p => DoneBook.label('reading', p), unitWord: '篇' });
     on(root, 'click', '[data-read-type]', (e, t) => {
       if (this.readType !== t.dataset.readType) {
         /* 切题型只需把“篇目”归零；筛选的其它维度要补默认值，
@@ -106,6 +106,7 @@ const ViewRead = {
         <div class="phead-r"><button class="btn btn-gh btn-s" data-act="import">📄 导入真题</button></div>
       </div>
       <div id="rdPicker">${Picker.html({ items: all, partItems: this._pickerParts(all), sel: this.sel || {}, unitWord: '篇', levelFilter: true,
+        statusOf: p => DoneBook.label('reading', p),
         ...pickerMeta, aiTip: pickerHint || '' })}</div>
       ${this._typeTabs(all)}
       <div class="card read-empty-type"><div class="card-b">
@@ -214,6 +215,7 @@ const ViewRead = {
 
       <div id="rdPicker">${Picker.html({
       items: all, partItems: this._pickerParts(all), sel: this.sel || {}, unitWord: '篇', levelFilter: true,
+      statusOf: p => DoneBook.label('reading', p),
       ...pickerMeta,
       aiTip: '',
     })}</div>
@@ -222,6 +224,7 @@ const ViewRead = {
 
     <div class="row" style="margin-bottom:12px">
       <span class="tag tag-warn">${p.source === 'generated-unverified' ? '生成内容（来源未核验）' : p.mine ? '我导入的题目（来源未核验）' : p.source === 'user-provided-pdf' ? '用户提供 PDF（来源未核验）' : '内置仿真题（非真题原文）'}</span>
+      ${DoneBook.of('reading', p) ? `<span class="tag tag-ok" title="${esc(DoneBook.detail('reading', p))}；重新提交会覆盖上次成绩">✓ 本篇已做过 · ${DoneBook.percent(DoneBook.of('reading', p))}%</span>` : ''}
       ${p.year !== null && p.year !== undefined ? `<span class="tag">${fullLabel(p.year, p.session)} · ${esc(p.pickerLabel || `第 ${p.no} 篇`)}</span>` : ''}
       ${p.genre && p.genre !== p.pickerLabel && p.genre !== p.examPart ? `<span class="tag">${esc(p.genre)}</span>` : ''}
       <span class="sp"></span>
@@ -1083,7 +1086,7 @@ const ViewRead = {
       this.answers = {}; this.submitted = false; this.marks = {}; this.selected = null; this.hist = [];
       this._paraCn = {}; this._paraOpen = new Set();   // 切篇清空段落翻译
       this._shell($('#view'));
-    }, { partItems: this._pickerParts(this.allPass), partById: true });
+    }, { partItems: this._pickerParts(this.allPass), partById: true, statusOf: p => DoneBook.label('reading', p), unitWord: '篇' });
 
     on(root, 'click', '[data-mode]', (e, t) => {
       const nextMode = t.dataset.mode;

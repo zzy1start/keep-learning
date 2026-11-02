@@ -356,6 +356,7 @@ const ViewTranslate = {
          * 页面上连"按类型/年份/题号筛选"的入口都看不到，和写作页的体验完全不一致。
          * 现在只要有题就渲染，选项多少由数据决定（题库变多后自然就能筛）。*/
         items: pool, partItems: pool, sel: this.sel || {}, unitWord: '题', levelFilter: true,
+        statusOf: t => DoneBook.label('translation', t),
         families: ['cet4', 'cet6', 'kaoyan'],
         filterTitle: '按考试类型、年份、月份 / 英语一或英语二、题号选择',
         hint: '依次选择考试类型、年份、月份或英语一 / 英语二，最后选择题号；题号仅显示当前题型内的翻译题，考研不按月份筛选。',
@@ -608,7 +609,7 @@ const ViewTranslate = {
         this.answer = ''; this.result = null; this._imgs = [];
         this._resetTimer();
         this._shell(App.freshView());
-      }, { partItems: pool, partById: true, unitWord: '题' });
+      }, { partItems: pool, partById: true, unitWord: '题', statusOf: t => DoneBook.label('translation', t) });
     }
     const customPick = $('#trCustomPick', root);
     if (customPick) customPick.onchange = () => {
@@ -871,6 +872,7 @@ const ViewTranslate = {
         const sc = this.result.score;
         Store.d.writeLog.unshift({
           at: Date.now(), kind: 'translation',
+          taskId: t.id == null ? '' : String(t.id),
           title: (t.title || t.translationText || t.cn || '').slice(0, 40),
           score: +sc.total || 0,
           max: +(sc.max || max),

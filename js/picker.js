@@ -119,6 +119,21 @@ const Picker = {
     const setVal = sel.set !== undefined ? sel.set : 'all';
     const parts = this.partsOf(partItems, yearVal, sessVal, familyVal, setVal);
     const noVal = sel.no !== undefined ? sel.no : 'all';
+    /* 「已做过」标记：由各视图传入 statusOf(item) -> '✓已做 85%' 或 ''。
+     * 不传时选择器完全保持原样（单词等其它页面不受影响）。*/
+    const statusOf = typeof o.statusOf === 'function' ? o.statusOf : null;
+    const doneLabel = it => statusOf ? String(statusOf(it) || '') : '';
+    const doneCount = arr => (arr || []).reduce((n, it) => n + (doneLabel(it) ? 1 : 0), 0);
+    /* 套卷级进度：0 篇已做就不加字；全做完显示"✓全部已做"；否则"已做 x/y 篇"。
+     * 单题（写作/翻译）的"套"只有 1 题，直接显示"✓已做"。*/
+    const setMark = arr => {
+      if (!statusOf || !arr || !arr.length) return '';
+      const d = doneCount(arr);
+      if (!d) return '';
+      const unit = o.unitWord || '篇';
+      if (d === arr.length) return arr.length === 1 ? ' · ✓已做' : ' · ✓全部已做';
+      return ' · 已做 ' + d + '/' + arr.length + ' ' + unit;
+    };
 
     const familyOpts = levelFilter ? [
       `<option value="all"${familyVal === 'all' ? ' selected' : ''}>全部考试类型</option>`,
@@ -141,10 +156,17 @@ const Picker = {
       const ss = this.setsOf(items, yearVal, s, familyVal);
       if (ss.length) {
         const sLabel = String(sessionLabel(s)).replace(/\s*月卷$/, ' 月');
-        sessionChoices.push({ v: String(s), label: sLabel + ' · 全部套' });
-        ss.forEach(set => sessionChoices.push({ v: `${s}|${set}`, label: sLabel + ' · 第' + set + '套' }));
+        /* 套别选项后追加整卷进度：先算"全部套"（含未分套的旧题），再逐套算。
+         * 统计口径是该年该场所有篇目，不受当前题型/篇目筛选影响。*/
+        const allOfSession = this.partsOf(items, yearVal, s, familyVal, 'all');
+        sessionChoices.push({ v: String(s), label: sLabel + ' · 全部套' + setMark(allOfSession) });
+        ss.forEach(set => {
+          const arr = this.partsOf(items, yearVal, s, familyVal, set);
+          sessionChoices.push({ v: `${s}|${set}`, label: sLabel + ' · 第' + set + '套' + setMark(arr) });
+        });
       } else {
-        sessionChoices.push({ v: String(s), label: sessionLabel(s) });
+        const arr = this.partsOf(items, yearVal, s, familyVal, 'all');
+        sessionChoices.push({ v: String(s), label: sessionLabel(s) + setMark(arr) });
       }
     });
     const allSessionLabel = levelFilter ? this.sessionsAllLabel(items, yearVal, familyVal) : this.sessionsAllLabel(items, yearVal);
@@ -159,7 +181,9 @@ const Picker = {
       `<option value="all"${noVal === 'all' ? ' selected' : ''}>全部篇章</option>`,
       ...parts.map((p, i) => {
         const value = o.partById && p.id ? `id:${p.id}` : p.no;
-        return `<option value="${esc(value)}"${this.matchesPart(p, noVal) && noVal !== 'all' ? ' selected' : ''}>${esc(this.partLabel(p, i, o.unitWord))}</option>`;
+        const mark = doneLabel(p);
+        const label = this.partLabel(p, i, o.unitWord) + (mark ? ' · ' + mark : '');
+        return `<option value="${esc(value)}"${this.matchesPart(p, noVal) && noVal !== 'all' ? ' selected' : ''}>${esc(label)}</option>`;
       }),
     ].join('');
     const shown = parts.filter(p => this.matchesPart(p, noVal)).length;
@@ -170,7 +194,10 @@ const Picker = {
       <div class="card-h">
         <svg viewBox="0 0 24 24" class="ic ic-sm"><rect x="3" y="4" width="18" height="18" rx="2"/><path d="M16 2v4M8 2v4M3 10h18"/></svg>
         ${o.filterTitle || '按年份与篇章选择'}
-        <span class="r"><span class="tag tag-pri">${o.unitWord || '篇章'} ${shown} / ${parts.length}</span></span>
+        <span class="r">
+          <span class="tag tag-pri">${o.unitWord || '篇章'} ${shown} / ${parts.length}</span>
+          ${statusOf ? `<span class="tag pk-done-count ${doneCount(parts) ? 'tag-ok' : ''}" title="当前筛选范围内已提交过的篇目数">已做 ${doneCount(parts)} / ${parts.length}</span>` : ''}
+        </span>
       </div>
       <div class="card-b">
         <div class="grid ${familyGrid}" style="gap:9px">
@@ -183,6 +210,7 @@ const Picker = {
         <div class="hint" style="margin-top:9px">
           ${o.hint || ''}
           当前可用：<b>${parts.length}</b> ${o.unitWord || '篇'}。
+          ${statusOf ? '<br><b class="done-legend">✓已做</b> = 之前提交过；可随时重做，重新提交会覆盖上次成绩。' : ''}
           ${o.aiTip ? '<br><b>' + esc(o.aiTip) + '</b>' : ''}
         </div>
       </div>
@@ -193,6 +221,19 @@ const Picker = {
   bind(root, items, cur, onChange, opts = {}) {
     const partItems = opts.partItems || items;
     const sel = k => root.querySelector('#pk' + k.charAt(0).toUpperCase() + k.slice(1));
+    /* 动态重填下拉时也要保留「已做过」标记，否则用户一换年份/月份，
+     * html() 里生成的 ✓已做 就全被覆盖掉了。*/
+    const statusOf = typeof opts.statusOf === 'function' ? opts.statusOf : null;
+    const doneLabel = it => statusOf ? String(statusOf(it) || '') : '';
+    const doneCount = arr => (arr || []).reduce((n, it) => n + (doneLabel(it) ? 1 : 0), 0);
+    const setMark = arr => {
+      if (!statusOf || !arr || !arr.length) return '';
+      const d = doneCount(arr);
+      if (!d) return '';
+      const unit = opts.unitWord || '篇';
+      if (d === arr.length) return arr.length === 1 ? ' · ✓已做' : ' · ✓全部已做';
+      return ' · 已做 ' + d + '/' + arr.length + ' ' + unit;
+    };
     const read = () => {
       const y = sel('year'), n = sel('no'), s = sel('session'), l = sel('level');
       let session = s ? s.value : 'all';
@@ -235,9 +276,16 @@ const Picker = {
         const ss = Picker.setsOf(items, year, s, family);
         if (ss.length) {
           const sLabel = String(sessionLabel(s)).replace(/\s*月卷$/, ' 月');
-          choices.push({ v: String(s), label: sLabel + ' · 全部套' });
-          ss.forEach(set => choices.push({ v: `${s}|${set}`, label: sLabel + ' · 第' + set + '套' }));
-        } else choices.push({ v: String(s), label: sessionLabel(s) });
+          const allOfSession = Picker.partsOf(items, year, s, family, 'all');
+          choices.push({ v: String(s), label: sLabel + ' · 全部套' + setMark(allOfSession) });
+          ss.forEach(set => {
+            const arr = Picker.partsOf(items, year, s, family, set);
+            choices.push({ v: `${s}|${set}`, label: sLabel + ' · 第' + set + '套' + setMark(arr) });
+          });
+        } else {
+          const arr = Picker.partsOf(items, year, s, family, 'all');
+          choices.push({ v: String(s), label: sessionLabel(s) + setMark(arr) });
+        }
       });
       sEl.innerHTML = ['<option value="all">全部月份</option>']
         .concat(choices.map(x => `<option value="${x.v}">${x.label}</option>`)).join('');
@@ -259,8 +307,11 @@ const Picker = {
       const nEl = sel('no');
       if (!nEl) return;
       const parts = Picker.partsOf(partItems, year, session, family, set || 'all');
-      nEl.innerHTML = '<option value="all">全部篇章</option>' + parts.map((x, i) =>
-        `<option value="${esc(opts.partById && x.id ? `id:${x.id}` : x.no)}">${esc(Picker.partLabel(x, i, opts.unitWord))}</option>`).join('');
+      nEl.innerHTML = '<option value="all">全部篇章</option>' + parts.map((x, i) => {
+        const mark = doneLabel(x);
+        const label = Picker.partLabel(x, i, opts.unitWord) + (mark ? ' · ' + mark : '');
+        return `<option value="${esc(opts.partById && x.id ? `id:${x.id}` : x.no)}">${esc(label)}</option>`;
+      }).join('');
       nEl.value = 'all';
     };
 

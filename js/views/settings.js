@@ -71,7 +71,8 @@ const ViewSettings = {
                 常见取值：OpenAI <code>gpt-4o</code> / <code>gpt-4o-mini</code>　·　
                 DeepSeek <code>deepseek-flash</code> / <code>deepseek-v4-pro</code>　·
                 Kimi <code>kimi-k2</code>　·　通义 <code>qwen-vl-max</code><br>
-                <b>注意</b>：手写识别功能需要支持图片输入的模型（多模态）。纯文本模型不影响其他功能。
+                <b>注意</b>：手写 / 拍照识别需要支持图片输入的模型（多模态）。
+                当前模型只支持文本时，应用会自动改用同接口中支持图片的模型，并在评分结果里注明。
               </div>
               <div id="modelHint" class="hint" style="margin-top:6px"></div>
             </div>

@@ -100,9 +100,21 @@ const grade = { score: { TR: 3.5, CC: 3.5, LR: 3.5, GRA: 3.5, total: 14, max: 15
       assert.equal(result.score, undefined); assert.equal(result.apiVerification, undefined);
     });
 
-    await check('Real grading rejects missing fields, inconsistent scores and non-Chinese output', async () => {
+    await check('Real grading repairs inconsistent scores instead of failing, and still rejects bad structure', async () => {
       assert.match(ai.translationScoreIssue({ ...grade, score: {} }, 15), /缺失/);
-      assert.match(ai.translationScoreIssue({ ...grade, score: { ...grade.score, total: 10 } }, 15), /不一致/);
+      /* 四维之和 ≠ total：以 total 为准等比缩放四维，不再判失败 */
+      const dimFix = { ...grade, score: { ...grade.score, total: 10 } };
+      assert.equal(ai.translationScoreIssue(dimFix, 15), '');
+      const dimSum = ['TR', 'CC', 'LR', 'GRA'].reduce((n, k) => n + Number(dimFix.score[k]), 0);
+      assert.ok(Math.abs(dimSum - 10) < 0.01, '四维之和应归一到总分 10，实际 ' + dimSum);
+      /* AI 自报满分与本题满分不同：等比缩放到本题满分，不再判失败 */
+      const maxFix = { ...grade, score: { ...grade.score, max: 30, total: 28, TR: 7, CC: 7, LR: 7, GRA: 7 } };
+      assert.equal(ai.translationScoreIssue(maxFix, 15), '');
+      assert.equal(maxFix.score.max, 15);
+      assert.ok(Math.abs(maxFix.score.total - 14) < 0.01, '总分应按 15/30 缩放到 14，实际 ' + maxFix.score.total);
+      /* 总分明显越过自报满分：仍然拒绝 */
+      assert.match(ai.translationScoreIssue({ ...grade, score: { ...grade.score, total: 18 } }, 15), /范围/);
+      /* 评语/参考译文语言不对：软校验仍提示 */
       assert.match(ai.translationScoreIssue({ ...grade, polished: 'An English essay.' }, 15), /不完整/);
       replies = [{ data: grade }];
       const result = await ai.gradeTranslation({ prompt }, '中文译文', [], 15, { tries: 1 });

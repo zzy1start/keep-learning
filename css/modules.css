@@ -1173,3 +1173,13 @@ svg.ic-fill path:last-child{fill:none;stroke:currentColor;stroke-width:1.8;strok
 .adv-diag[open]>summary::before{content:'▾ '}
 .adv-diag[open]>summary{margin-bottom:6px;color:var(--tx2)}
 .adv-body{padding-top:2px}
+
+/* ---- 已做过标记（js/done.js + picker.js） ----
+ * 只做视觉强调：变暗 + 绿色勾，不锁交互，已做篇目仍可点开重做。
+ * 选中项（.on）保留更高不透明度，避免"选中了却看不清"。*/
+.part-tab.is-done{opacity:.58}
+.part-tab.is-done:hover{opacity:.82}
+.part-tab.is-done.on{opacity:.94}
+.part-tab .done-flag{margin-left:4px;color:var(--ok);font-weight:750;font-size:11px;white-space:nowrap}
+.part-tab.on .done-flag{color:#d9ffe9}
+.done-legend{color:var(--ok);font-weight:650}
