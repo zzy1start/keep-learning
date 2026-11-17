@@ -36,7 +36,9 @@ const Welcome = {
         <div style="font-size:19px;font-weight:750;letter-spacing:-.3px">Keep Learning</div>
         <div style="font-size:12.5px;color:var(--tx2);margin-top:2px">
           ${isReturn
-        ? `欢迎回来，今天是你连续学习的第 <b style="color:var(--pri)">${streak}</b> 天`
+        ? (streak
+          ? `欢迎回来，今天是你连续学习的第 <b style="color:var(--pri)">${streak}</b> 天`
+          : '欢迎回来，今天从第一次练习开始连续打卡')
         : '本地英语学习工作台'}
         </div>
       </div>

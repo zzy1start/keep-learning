@@ -150,7 +150,11 @@ Garden.growthStage = function (growth) {
 
 Garden.growthPercent = function (growth) {
   const g = Math.max(0, Math.min(1, Number(growth) || 0));
-  return g >= 1 ? 100 : Math.min(99, Math.round(g * 100));
+  if (g >= 1) return 100;
+  /* 一次 10 分钟学习在 90 天树种上约 +0.55%：整数取整会显示成 0%，
+   * 看起来“学了也没长”。低于 10% 时保留 1 位小数，让变化可见。*/
+  const pct = g * 100;
+  return Math.min(99.9, pct >= 10 ? Math.round(pct) : Math.round(pct * 10) / 10);
 };
 
 /** 画一棵具体的树（SVG），按 kind 区分形态 */

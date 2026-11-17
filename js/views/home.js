@@ -56,7 +56,10 @@ const ViewHome = {
     root.innerHTML = `
     <section class="hero">
       <div style="position:relative;z-index:1">
-        <div class="d">今天是你连续学习的第 <b style="font-size:16px">${st.streak || 0}</b> 天</div>
+        <div class="d">${st.streak
+      ? `今天是你连续学习的第 <b style="font-size:16px">${st.streak}</b> 天`
+      : '今天还没开始学习，完成一次练习就开始连续打卡'}${(st.days || []).length > (st.streak || 0)
+        ? `<span style="font-size:12px;color:var(--tx3)">　·　累计 ${st.days.length} 天</span>` : ''}</div>
         <div class="n">Keep <small>Learning</small></div>
         <div class="d" style="margin-top:4px">坚持一点点，离目标更近一步！</div>
       </div>
@@ -236,8 +239,8 @@ const ViewHome = {
       ${got ? `<div class="sec-t">园中它的树</div>
         ${trees.map(t => `<div class="row" style="gap:8px;padding:5px 0;font-size:12.5px">
           <span style="width:82px">${esc(t.date)}</span>
-          <span class="bar" style="flex:1"><i style="width:${Math.round(t.growth * 100)}%"></i></span>
-          <span style="width:38px;text-align:right">${Math.round(t.growth * 100)}%</span>
+          <span class="bar" style="flex:1"><i style="width:${Garden.growthPercent(t.growth)}%"></i></span>
+          <span style="width:38px;text-align:right">${Garden.growthPercent(t.growth)}%</span>
         </div>`).join('')}`
         : `<div class="tipbox">还没种下过。树种是<b>随机分配</b>的——种到哪棵就收集哪棵，
           无法指定，这与真实学习一样：结果不由偏好决定。</div>`}
@@ -324,7 +327,7 @@ const ViewHome = {
         <div>树种：<b>${esc(t.species)}</b>${info.latin ? `　<span style="color:var(--tx3);font-style:italic">${esc(info.latin)}</span>` : ''}</div>
         <div>种植日期：<b>${esc(t.date)}</b>${t.stumpAt ? '　砍伐日期：<b>' + esc(App.fmtDate(new Date(t.stumpAt))) + '</b>' : ''}</div>
         <div>累计投入学习时长：<b>${Math.round(Garden.investedMinutes(t))}</b> 分钟</div>
-        <div>成熟周期：<b>${info.matureDays || 30}</b> 天　当前成长：<b>${Math.round(t.growth * 100)}%</b></div>
+        <div>成熟周期：<b>${info.matureDays || 30}</b> 天　当前成长：<b>${Garden.growthPercent(t.growth)}%</b></div>
         <div>关联单词：<b>${t.words.length}</b> 个${t.words.length ? '（' + t.words.slice(0, 8).map(w => esc(w.word)).join('、') + (t.words.length > 8 ? '…' : '') + '）' : '　<b style="color:var(--warn)">当天未记录单词，成长按时间衰减</b>'}</div>
       </div>
       <div class="sec-t">当日学习质量（影响成长度）</div>

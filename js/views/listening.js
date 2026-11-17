@@ -697,7 +697,7 @@ const ViewListen = {
               : p.setNo ? '<span class="tag">第 ' + p.setNo + ' 套</span>' : ''}
             <span class="tag ${isCet4 ? 'tag-ok' : 'tag-pri'}">${esc(p.level || '')}</span>
             ${paperKind ? `<span class="tag">${esc(paperKind)}</span>` : ''}
-            ${doneRec ? `<span class="tag tag-ok" title="${esc(DoneBook.detail('listening', p))}；重新提交会覆盖上次成绩">✓ 已做过 ${DoneBook.percent(doneRec)}%</span>` : ''}
+            ${doneRec ? `<span class="tag tag-ok" title="${esc(DoneBook.detail('listening', p))}；重新提交会覆盖上次成绩">✓ 已做过 ${esc(DoneBook.scoreText(doneRec))}</span>` : ''}
             ${missingStemCount ? `<span class="tag tag-warn lsn-stem-tag" title="四六级听力卷面只印选项，题干只在录音中播报">卷面未印题干 ${missingStemCount}</span>` : ''}
             ${p.typeVerification === 'ai-verified'
               ? `<span class="tag tag-ok" title="${esc((p.typeEvidence || []).join('；'))}">AI 核验类型</span>`

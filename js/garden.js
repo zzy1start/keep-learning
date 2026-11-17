@@ -115,7 +115,8 @@ const Garden = {
       parts[k] = Math.min(1, (day[k] || 0) / caps[k]);
     }
     // 2) 时长（10~45 分钟为最佳区间，太短没投入、过长是低效）
-    const min = (day.seconds || 0) / 60;
+    /* 旧存档只有 min、没有 seconds；两种都认，避免升级后当日时长突然变成 0。*/
+    const min = day.seconds ? (day.seconds || 0) / 60 : (Number(day.min) || 0);
     parts.time = min < 5 ? min / 5 * 0.5
       : min <= 45 ? 1
         : min <= 90 ? 0.85
@@ -290,7 +291,7 @@ const Garden = {
     for (const d in (Store.d.stats.daily || {})) {
       if (this._ts(d) < start) continue;
       const day = Store.d.stats.daily[d];
-      mins += (day.seconds || 0) / 60;
+      mins += day.seconds ? (day.seconds || 0) / 60 : (Number(day.min) || 0);
     }
     return Math.round(mins);
   },
@@ -318,11 +319,43 @@ const Garden = {
 
   /* ---------------- 种树 / 养护 ---------------- */
   /**
+   * 【2026-11-14】旧版树迁移到 v2。
+   *
+   * 旧版树的成长度由「保持率 × 旧时长公式」决定，recordActivity() 又只给
+   * trackingVersion===2 的树加时长 —— 升级后用户园中那棵旧树永远停在原来的百分比，
+   * 学再久也不动（用户反馈“树的成长没有变化”）。
+   *
+   * 迁移时把“当前成长度”折算成等效投入分钟（growth × matureDays × 20），
+   * 再与已有的 investedMin/旧日统计取较大值，保证迁移后成长度不会倒退；
+   * 之后每学一分钟都按同一公式继续长。
+   * @returns {number} 迁移的树数量
+   */
+  _migrateTrees(g) {
+    let n = 0;
+    for (const t of (g && Array.isArray(g.trees) ? g.trees : [])) {
+      if (!t || t.trackingVersion === 2) continue;
+      const info = this.infoOf(t.species);
+      const span = Math.max(1, Number(info && info.matureDays) || 30);
+      const fromGrowth = Math.max(0, Number(t.growth) || 0) * span * 20;
+      const fromRecord = Math.max(0, Number(t.investedMin) || 0, this.investedMinutes(t));
+      t.investedMin = Math.round(Math.max(fromGrowth, fromRecord) * 10) / 10;
+      t.trackingVersion = 2;
+      t.growth = Math.max(Number(t.growth) || 0, this.growthOf(t));
+      n++;
+    }
+    if (n) this._save(g);
+    return n;
+  },
+
+  /**
    * 记录一天的学习 → 种一棵苗
    * 学习时调用；未成熟树继续培育，成熟后再种新树
    */
   plantDay(dateKey) {
     const g = this._g();
+    /* 先迁移旧树：否则 find() 会把旧树当成“可继续培育”返回，
+     * 而 recordActivity 又因 trackingVersion!==2 直接 return，成长永远不动。*/
+    this._migrateTrees(g);
     const active = [...g.trees].reverse().find(t => t.state !== 'stump' && t.growth < 1);
     if (active) return active;
     const idx = g.trees.length;
@@ -361,11 +394,16 @@ const Garden = {
 
   /** 将本次有效学习时长只记给当前树，旧树的时长不再增加。 */
   recordActivity(seconds) {
+    const sec = Math.max(0, Number(seconds) || 0);
+    if (!sec) return;
+    /* plantDay 内部先做旧树迁移；迁移后当前树一定是 v2，旧版“直接 return”的冻结问题消失。*/
     const tree = this.plantDay(App.today());
     if (!tree || tree.trackingVersion !== 2) return;
-    tree.investedMin = (tree.investedMin || 0) + seconds / 60;
-    tree.growth = this.growthOf(tree);
-    this._save(this._g());
+    tree.investedMin = (Number(tree.investedMin) || 0) + sec / 60;
+    /* 只增不减：即使记忆保持率下降，也不该把已经长出来的部分倒扣回去。*/
+    tree.growth = Math.max(Number(tree.growth) || 0, this.growthOf(tree));
+    /* 这里不 flush：逐题记录时每写一次整个存档代价太大；
+     * 调用方 Store.logStudyTime 用 debounce 的 save()，Store.logActivity 结尾会 flush。*/
   },
 
   /**
@@ -374,6 +412,7 @@ const Garden = {
    */
   refresh() {
     const g = this._g();
+    this._migrateTrees(g);
     const now = Date.now();
     let changed = 0;
 
@@ -415,6 +454,8 @@ const Garden = {
       t.overdue = overdue;
 
       if (st !== prev) {
+        /* 旧存档的树可能没有 history（早期版本只存 growth/state），补一个空数组再记。*/
+        if (!Array.isArray(t.history)) t.history = [];
         t.history.push({ t: now, R: +R.toFixed(3), state: st });
         t.history = t.history.slice(-30);
         if (st === 'dead' && prev !== 'stump') {

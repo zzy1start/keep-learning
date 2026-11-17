@@ -1,7 +1,7 @@
 /* ============ install-brand-res.cjs : 把品牌图标/启动页装进 Android 工程 ============
  * 背景（1.1.48 事故）：android/ 不入库，tools/init-android.cjs 用 `npx cap add android`
  * 从 Capacitor 模板重建工程。模板自带的 ic_launcher / splash 是 Capacitor 默认素材
- * （蓝色 X + 网格）；10/29 手工换上的 ZY 品牌标在工程重建后被覆盖，导致 1.1.48 的
+ * （蓝色 X + 网格）；手工换上的品牌标在工程重建后被覆盖，导致 1.1.48 的
  * 桌面图标与开屏启动页退回默认素材。
  *
  * 修复：品牌素材入库到 native/android/brand-res/，本脚本把它覆盖到
@@ -63,4 +63,4 @@ for (const rel of files) {
   copied++;
 }
 console.log('✓ 已安装品牌图标/启动页：' + copied + ' 个文件 → ' + path.relative(ROOT, RES));
-console.log('  桌面图标与开屏 splash 现在使用 ZY 品牌素材（不再是 Capacitor 默认蓝色 X）');
+console.log('  桌面图标与开屏 splash 现在使用 Keep Learning 品牌素材（不再是 Capacitor 默认蓝色 X）');

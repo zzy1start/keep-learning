@@ -81,22 +81,39 @@ App.confirm = (msg, onYes) => {
     (b) => { b.querySelector('[data-x]').onclick = App.closeModal; b.querySelector('#cfmYes').onclick = () => { App.closeModal(); onYes && onYes(); }; });
 };
 
-/* ---- 格式化 ---- */
-App.fmtDate = (d = new Date()) => {
+/* ---- 格式化 ----
+ * 【2026-11-14】统一走 App.now()：测试可以替换时钟，线上仍返回 new Date()。
+ * 之前各模块到处 new Date()，连续天数却用 UTC 的 toISOString 算“昨天”，
+ * 在东八区 00:00–08:00 会把昨天算成前天（详见 docs/53）。*/
+App.now = () => new Date();
+App.fmtDate = (d = App.now()) => {
   const p = n => String(n).padStart(2, '0');
   return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}`;
 };
-App.fmtTime = (d = new Date()) => {
+App.fmtTime = (d = App.now()) => {
   const p = n => String(n).padStart(2, '0');
   return `${p(d.getHours())}:${p(d.getMinutes())}`;
 };
-App.fmtDT = (d = new Date()) => App.fmtDate(d) + ' ' + App.fmtTime(d);
+App.fmtDT = (d = App.now()) => App.fmtDate(d) + ' ' + App.fmtTime(d);
 App.mmss = sec => {
   sec = Math.max(0, Math.round(sec));
   const p = n => String(n).padStart(2, '0');
   return `${p(Math.floor(sec / 60))}:${p(sec % 60)}`;
 };
-App.today = () => App.fmtDate();
+App.today = () => App.fmtDate(App.now());
+/** 把 YYYY-MM-DD 解析为“本地日历”的 00:00，绝不经 UTC 往返 */
+App.parseDay = key => {
+  const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(String(key == null ? '' : key));
+  if (!m) return null;
+  const d = new Date(Number(m[1]), Number(m[2]) - 1, Number(m[3]));
+  return isNaN(d.getTime()) ? null : d;
+};
+/** 日期键平移 N 天（负数为向前），按本地日历算，跨月/跨年安全 */
+App.shiftDay = (key, delta) => {
+  const d = App.parseDay(key) || App.now();
+  d.setDate(d.getDate() + (Number(delta) || 0));
+  return App.fmtDate(d);
+};
 
 /* ---- 打乱 ---- */
 App.shuffle = arr => {
@@ -184,6 +201,17 @@ App.ring = (pct, size = 96, color = 'var(--pri)') => {
 
 /* ---- 分词（阅读划词用）---- */
 App.words = txt => (txt.toLowerCase().match(/[a-z][a-z'-]*/g) || []);
+
+/* ---- 生词来源标签统一 ----
+ * 历史上阅读页有两个入口：点击单词浮层的「+生词本」（阅读划词）和划线分析面板的
+ * 「+ 生词本」（阅读划线）。两者是同一个动作，导出标题会并排出现两个几乎一样的标签。
+ * 统一显示为「阅读划词」，历史数据在展示时归一，不改存档。*/
+App.nbTag = tag => {
+  const s = String(tag == null ? '' : tag).trim();
+  if (!s) return '手动';
+  if (s === '阅读' || s === '阅读划线' || s === '阅读划词') return '阅读划词';
+  return s;
+};
 
 /* ---- 简易柱状图 ---- */
 /* ---- 页面停留计时（供树园评估学习时长）---- */

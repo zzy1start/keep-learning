@@ -94,6 +94,10 @@ const Store = {
     this.d.notebook = asArr(this.d.notebook);
     this.d.translation = nest(this.d.translation, { totalScore: 0 });
     this.d.translationCustomTasks = asArr(this.d.translationCustomTasks);
+    /* 【连续天数自愈】旧版用 UTC 的 toISOString 算"昨天"，东八区 00:00–08:00 会把
+     * 昨天算成前天，导致连续天数被重置成 1；这里按本地日历从 days/daily 重算，
+     * 存档里已经算错的 streak 也能在下次启动时修回来（详见 docs/53）。*/
+    this.repairStreak();
     /* 【已停止使用开源 Kokoro 人声引擎】用户明确表示"这个始终无法调好"，不再提供该引擎。
      * 旧存档里可能还留着 speechEngine:'neural'，这里迁移回系统语音——
      * 否则页面仍会去下载 90MB 模型再回落，等于把已经否掉的方案又跑一遍。*/
@@ -225,13 +229,85 @@ const Store = {
   },
 
   /* ---------- 统计 ---------- */
+  /** 合法且真实存在的 YYYY-MM-DD */
+  validDay(key) {
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(String(key == null ? '' : key))) return false;
+    if (typeof App.parseDay !== 'function') return true;
+    const d = App.parseDay(key);
+    return !!d && (typeof App.fmtDate !== 'function' || App.fmtDate(d) === key);
+  },
+
+  /**
+   * 用 days / daily / lastStudy 重算连续学习天数。
+   * 口径：从「今天」或「昨天」向前数连续有记录的天数；今天还没学则从昨天数，
+   * 这样 00:10 打开应用不会把昨天的连续记录显示成 0。
+   * 这是派生数据，重算不会新增/删除任何学习记录。
+   */
+  repairStreak() {
+    const st = this.d && this.d.stats;
+    if (!st) return 0;
+    /* 自检/外部工具可能只桩了 App.today：缺日期工具时不做自愈，但不能让 Store.load 崩。*/
+    if (typeof App.today !== 'function' || typeof App.fmtDate !== 'function') return 0;
+    const today = App.today();
+    const shift = (k, n) => {
+      if (typeof App.shiftDay === 'function') return App.shiftDay(k, n);
+      const base = typeof App.parseDay === 'function' ? App.parseDay(k) : new Date(k + 'T00:00:00');
+      return App.fmtDate(new Date((base || new Date()).getTime() + n * 864e5));
+    };
+    const set = new Set();
+    const add = k => { if (this.validDay(k) && k <= today) set.add(k); };
+    (Array.isArray(st.days) ? st.days : []).forEach(add);
+    Object.keys(st.daily && typeof st.daily === 'object' ? st.daily : {}).forEach(add);
+    add(st.lastStudy);
+    const days = [...set].sort();
+    if (days.length > 400) days.splice(0, days.length - 400);
+    const yesterday = shift(today, -1);
+    const anchor = set.has(today) ? today : (set.has(yesterday) ? yesterday : '');
+    let computed = 0;
+    let cur = anchor;
+    while (cur && set.has(cur) && computed < 5000) {
+      computed++;
+      cur = shift(cur, -1);
+    }
+    const stored = Math.max(0, Number(st.streak) || 0);
+    /* days 可能只是“最近 N 天”或旧版残缺数据：历史条数少于存档 streak 时，
+     * 不能凭不完整的历史把 5 天连击直接砍成 1。只有 days 足以覆盖存档值时，
+     * 才用重算结果（这正是“凌晨被重置成 1”的修复路径）。*/
+    const historyEnough = days.length >= Math.max(1, stored);
+    if (historyEnough || !stored) {
+      st.streak = computed;
+    } else if (typeof App.shiftDay === 'function') {
+      /* 只有完整的本地日期工具才判断“存档值是否已过期”；外部自检只桩了
+       * App.fmtDate（UTC 版）时，不能用它推昨天，否则会把正常存档误判成过期。*/
+      const last = st.lastStudy;
+      st.streak = (last && last !== today && last !== yesterday) ? 0 : stored;
+    } else {
+      st.streak = stored;
+    }
+    st.days = days;
+    st.lastStudy = days.length ? days[days.length - 1] : (st.lastStudy || '');
+    return st.streak;
+  },
+
+  /** 某天学习了多少分钟：新记录用 seconds，旧记录回退 min */
+  dayMinutes(day) {
+    if (!day || typeof day !== 'object') return 0;
+    const sec = Number(day.seconds);
+    if (Number.isFinite(sec) && sec > 0) return Math.max(1, Math.round(sec / 60));
+    return Math.max(0, Math.round(Number(day.min) || 0));
+  },
+
   markStudy() {
     const t = App.today();
     const st = this.d.stats;
     let firstToday = false;
     if (st.lastStudy !== t) {
       firstToday = true;
-      const y = new Date(Date.now() - 864e5).toISOString().slice(0, 10);
+      /* 【本地日历】不能用 toISOString().slice(0,10)：那是 UTC 的“昨天”，
+       * 在东八区 00:00–08:00 会得到前天，连续天数被误重置成 1。*/
+      const y = typeof App.shiftDay === 'function'
+        ? App.shiftDay(t, -1)
+        : new Date(Date.now() - 864e5).toISOString().slice(0, 10);
       st.streak = st.lastStudy === y ? st.streak + 1 : 1;
       st.lastStudy = t;
       if (!st.days.includes(t)) st.days.push(t);
@@ -307,7 +383,7 @@ const Store = {
   /** 只属于"学习进度"的字段：导出备份后，另一台设备可只更新这些，保留本机设置 */
   PROGRESS_FIELDS: ['srs', 'notebook', 'stats', 'listenLog', 'readLog', 'writeLog',
     'vocabTest', 'translationCustomTasks', 'translation', 'activeBook', 'garden', 'skipBatches',
-    'mineIds', 'importedPapers', 'readNotes'],
+    'mineIds', 'importedPapers', 'readNotes', 'vocabEngine'],
 
   /** 从备份 JSON 只导入学习进度；不动 settings / AI Key。导入的题库正文合并进 contentBackup。 */
   importProgress(j) {
@@ -347,14 +423,27 @@ const Store = {
         if (merged.length) this.d.contentBackup[t] = merged;
       }
     }
+    /* 引擎有内存缓存：导入后必须重置，否则下一次 save 会把旧状态写回去。*/
+    try { if (j.vocabEngine !== undefined && typeof VocabEngine !== 'undefined') VocabEngine.reset(); } catch (e) {}
     this.flush();
     return n;
   },
 
   /** 只导出学习进度 + 个人题库（不含 settings / AI Key），用于平板↔电脑互传 */
   progressBackup() {
+    /* 先裁掉历史遗留的空状态，避免进度文件被几 MB 的无用状态撑大 */
+    try {
+      if (typeof VocabEngine !== 'undefined' && VocabEngine.pruneEmptyStates) {
+        VocabEngine.pruneEmptyStates({ store: this });
+      }
+    } catch (e) { /* 裁剪失败不影响导出 */ }
     const out = { _type: 'keeplrn-progress', version: 2, exportedAt: new Date().toISOString() };
     for (const k of this.PROGRESS_FIELDS) if (this.d[k] !== undefined) out[k] = this.d[k];
+    /* 进行中的轮次只对当前设备有意义：里面可能挂着 UI 的 wordRef，跨设备恢复会互相污染。*/
+    if (out.vocabEngine && typeof out.vocabEngine === 'object') {
+      out.vocabEngine = Object.assign({}, out.vocabEngine);
+      delete out.vocabEngine.round;
+    }
     const personal = { listening: [], reading: [], writing: [] };
     try {
       const c = (typeof Dict !== 'undefined' && Dict.content) ? Dict.content : null;
@@ -412,6 +501,22 @@ const Store = {
       Garden.recordActivity(Math.min(7200, Math.round(o.seconds)));
     }
     this.flush();
+  },
+
+  /**
+   * 只记“学习时长”，不增加单词/听力等次数。
+   * 背单词是逐题作答，若只在整轮结束时记时长，中途退出就一点成长都没有；
+   * 每答一题调用一次，树园能立刻看到当前树在长（计数仍由 addStat/logActivity 负责）。
+   */
+  logStudyTime(seconds) {
+    const sec = Math.min(7200, Math.round(Number(seconds) || 0));
+    if (sec <= 0) return;
+    const day = this.markStudy();
+    day.seconds = (day.seconds || 0) + sec;
+    if (typeof Garden !== 'undefined') {
+      try { Garden.recordActivity(sec); } catch (e) { console.warn('garden growth fail', e); }
+    }
+    this.save();
   },
 
   /* ---------- 词汇量测试后的批量标熟（跳过简单词） ---------- */

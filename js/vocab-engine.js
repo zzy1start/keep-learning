@@ -81,8 +81,22 @@ const VocabEngine = {
     const p = n => String(n).padStart(2, '0');
     return d.getFullYear() + '-' + p(d.getMonth() + 1) + '-' + p(d.getDate());
   },
-  _dayIndex(iso) { if (!iso) return null; const t = new Date(iso + 'T00:00:00').getTime(); return Math.floor(t / this.DAY); },
-  _dateFromIndex(idx) { return new Date(idx * this.DAY).toISOString().slice(0, 10); },
+  /**
+   * 日期键 ↔ 天序号：只做“本地日历日期”的整数映射，不把本地午夜换算成 UTC 时刻。
+   * 旧实现 _dayIndex 用本地午夜时间戳、_dateFromIndex 却用 UTC 日期：
+   * 东八区下两者相差一天，7/15/30 天间隔会提前一天到期（复习/枯萎都偏早）。
+   */
+  _dayIndex(iso) {
+    if (!iso) return null;
+    const d = new Date(iso + 'T00:00:00');
+    if (isNaN(d.getTime())) return null;
+    return Math.floor(Date.UTC(d.getFullYear(), d.getMonth(), d.getDate()) / this.DAY);
+  },
+  _dateFromIndex(idx) {
+    const d = new Date(Number(idx) * this.DAY);
+    const p = n => String(n).padStart(2, '0');
+    return d.getUTCFullYear() + '-' + p(d.getUTCMonth() + 1) + '-' + p(d.getUTCDate());
+  },
 
   /* ================= §4 状态与持久化 ================= */
 
@@ -262,6 +276,31 @@ const VocabEngine = {
       vocabLowConfidence: !!(opts.lowConfidence),
     };
     return out;
+  },
+
+  /**
+   * 从 bandAccuracy 反推“应整带跳过”的频带。
+   * 有些旧存档/迁移路径会丢掉 skipBands 但保留每带正确率；只要某带正确率仍 ≥ 80%，
+   * 就应该继续按测试结果计入“已认识”，不能退化成“只学了 21 词”。
+   */
+  effectiveSkipBands(user) {
+    const acc = user && user.bandAccuracy;
+    if (!acc || typeof acc !== 'object') return [];
+    const rate = this.CONFIG.PLACEMENT.SKIP_RATE;
+    return Object.keys(acc)
+      .map(Number)
+      .filter(b => Number.isFinite(b) && Number(acc[b]) >= rate)
+      .sort((a, b) => a - b);
+  },
+
+  /** 从 bandAccuracy 反推起点带（第一个正确率 < 50% 的带；都没有则为 null） */
+  startBandFromAccuracy(user) {
+    const acc = user && user.bandAccuracy;
+    if (!acc || typeof acc !== 'object') return null;
+    const rate = this.CONFIG.PLACEMENT.START_RATE;
+    const bands = Object.keys(acc).map(Number).filter(Number.isFinite).sort((a, b) => a - b);
+    for (const b of bands) if (Number(acc[b]) < rate) return b;
+    return null;
   },
 
   /** 把 placement 结果写进 user 状态（并可选按带给每个词定级，见 §5.1 步 3） */
@@ -1086,7 +1125,13 @@ const VocabEngine = {
       u.bandPlacement = null;
       u.bandAccuracy = {};
       u.placementCorrect = [];
+      u.placementSource = '';
       u.calibrationRoundsLeft = 0;
+      /* 记住“用户主动取消过定级”：否则 _restorePlacementFromTest() 下次渲染
+       * 又会把测试的 skipBands 恢复回来，取消操作看起来没有生效。
+       * vocabEstimate 保留（它是测试结论），页面会标成“测试估算（未跳过）”。*/
+      const vt = store && store.d && store.d.vocabTest && store.d.vocabTest[bookId];
+      if (vt) vt.placementDisabled = true;
     }
     this.save(store);
     return { count: words.length, words };

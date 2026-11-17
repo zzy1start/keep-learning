@@ -25,6 +25,9 @@ const ViewVocab = {
   _renderShell(root) {
     root = App.freshView();
     const b = this.book;
+    /* 测试结果还在、引擎定级却丢了（换设备 / 旧版迁移 / 点了恢复新词）时，
+     * 先用测试里持久化的定级把跳过带补回来，避免又显示成“只学了 21 词”。*/
+    this._restorePlacementFromTest();
     const prog = Store.bookProgress(b.id);
     const dayN = Store.d.settings.dailyNew;
     /* 【今日新词按"真正学过的新词"统计】原来取 stats.daily.words，
@@ -205,6 +208,7 @@ const ViewVocab = {
   _act(act, mode) {
     const b = this.book;
     if (act === 'test') return this._vocabTest();
+    if (act === 'applyEstimate') return this._applyEstimatePlacement();
     if (act === 'settings') return this._settings();
     if (act === 'adjustSkip') return this._adjustSkip();
     if (act === 'start-new') return this._begin('new', { continueAfterGoal: true });
@@ -394,6 +398,25 @@ const ViewVocab = {
      * 喂给 VocabEngine.placement()；组轮时对"第一次出现的词"惰性给起点（跳过带→L3 抽检池、
      * 边界带→L1、起点带及以后→L0；抽样答对的词→L3+抽检池）。*/
     const placement = this._runPlacement(ts, bk);
+    /* 【持久化定级】引擎状态可能在换设备、恢复进度或“恢复新词”后丢失；
+     * 把分带正确率/跳过带一并写进 vocabTest（它属于 PROGRESS_FIELDS），
+     * 页面下次就能据此恢复，而不是只剩一个孤零零的“估算 3500”。*/
+    if (placement) {
+      const vt = Store.d.vocabTest[bk.id];
+      if (vt) {
+        vt.placement = {
+          accuracy: placement.accuracy,
+          bandResults: placement.rows,
+          skipBands: placement.skipBands,
+          bandPlacement: placement.bandPlacement,
+          vocabEstimate: placement.vocabEstimate,
+          correctIds: placement.correctIds,
+          at: new Date().toISOString(),
+        };
+        vt.placementDisabled = false;
+        Store.flush();
+      }
+    }
     /* 【整带跳过的覆盖面提醒】定级只用 40 道题就按频带外推整本词书：
      * 跳过带覆盖过半时，引擎里就没有 L0 新词了，每日新词会一直显示"已学完"
      * （2026-10-22 用户反馈）。这里提前把后果说清楚，并给出恢复入口。*/
@@ -508,7 +531,20 @@ const ViewVocab = {
         this._begin('smart');
       };
       $('#testOk', b).onclick = apply;
-      $('#testNoSkip', b).onclick = () => { App.closeModal(); this._begin('smart'); };
+      $('#testNoSkip', b).onclick = () => {
+        /* “全部从头学”必须真的取消定级：旧实现只跳过 srs 标熟，引擎里
+         * skipBands/bandPlacement 仍然生效，按钮文案与行为不一致。*/
+        const E = this._engine();
+        if (E) {
+          E.load(Store);
+          E.releaseUnlearned(Store, bk.id);
+          this._mirrorSrs();
+        }
+        const vt = Store.d.vocabTest[bk.id];
+        if (vt) { vt.placementDisabled = true; Store.flush(); }
+        App.closeModal();
+        this._begin('smart');
+      };
     });
   },
 
@@ -537,6 +573,118 @@ const ViewVocab = {
     const p = E.placement(rows.filter(r => r.sampled > 0), sizes);
     E.applyPlacement(p, correctIds);
     return Object.assign({}, p, { rows, correctIds });
+  },
+
+  /**
+   * 逐频带结果没保存时，按整体估算反推“最容易的几个频带”作为测试已认识。
+   * 只跳最容易的整带，永远保留最难的一带不让新词池归零；
+   * 这是估算恢复，不是精确逐词判定，页面会标注来源。
+   * @returns {{bands:number[], count:number, known:number}}
+   */
+  _estimateSkipBands(est) {
+    const E = this._engine(), b = this.book, Q = this._quiz();
+    if (!E || !b || !Q) return { bands: [], count: 0, known: 0 };
+    const total = (b.words || []).length;
+    const known = Math.max(0, Math.min(total, Math.round(Number(est) || 0)));
+    const bands = E.CONFIG.PLACEMENT.BANDS;
+    const sizes = new Array(bands).fill(0);
+    for (const w of (b.words || [])) {
+      try { sizes[Q.bandOf(b, w)]++; } catch (e) { /* 单词语料异常忽略 */ }
+    }
+    const chosen = [];
+    let count = 0;
+    /* 0 是最容易的频带；保留最后一带（最难）不跳，避免“新词已学完”。*/
+    for (let i = 0; i < bands - 1; i++) {
+      if (!sizes[i]) continue;
+      if (count + sizes[i] > known) break;
+      chosen.push(i);
+      count += sizes[i];
+    }
+    return { bands: chosen, count, known };
+  },
+
+  /** 按测试估算恢复：用户确认后把最容易的整带标为“测试已认识”。 */
+  _applyEstimatePlacement() {
+    const E = this._engine(), b = this.book;
+    if (!E || !b) { App.toast('词书未加载，请刷新后重试', ''); return; }
+    E.load(Store);
+    const vt = (Store.d.vocabTest && Store.d.vocabTest[b.id]) || null;
+    const est = Number(vt && vt.estimate) || Number((E.load().user || {}).vocabEstimate) || 0;
+    if (!est) { App.toast('没有可用的词汇量测试记录', ''); return; }
+    const plan = this._estimateSkipBands(est);
+    if (!plan.bands.length) {
+      App.toast('这次测试的估算不足以跳过整带，建议重新测试', '');
+      return;
+    }
+    App.confirm(
+      '逐频带结果没有保存，无法知道具体哪几个词答对。\n\n' +
+      '可以按整体估算把最容易的 ' + plan.bands.length + ' 个频带（约 ' + plan.count + ' 词）' +
+      '标为「测试已认识」；这只是估算，之后可用「恢复新词」撤销。\n\n继续吗？',
+      () => {
+        E.load(Store);
+        const u = E.load().user || {};
+        u.vocabEstimate = est;
+        u.skipBands = plan.bands.slice();
+        u.bandPlacement = null;
+        u.bandAccuracy = {};
+        u.placementCorrect = [];
+        u.placementSource = 'estimate';
+        E.save(Store);
+        if (vt) {
+          vt.placementDisabled = false;
+          vt.estimateAppliedAt = new Date().toISOString();
+        }
+        Store.flush();
+        this._renderShell($('#view'));
+        App.toast('已按测试估算恢复 ' + plan.bands.length + ' 个频带（约 ' + plan.count + ' 词）', 'ok');
+      });
+  },
+
+  /**
+   * 从词汇量测试里持久化的定级恢复引擎状态。
+   * 只补“完全没有定级信息”的情况：
+   *   - 用户主动选过“全部从头学 / 恢复新词”→ placementDisabled=true，不恢复；
+   *   - 引擎里已有 skipBands / bandAccuracy / 起点 → 不覆盖。
+   */
+  _restorePlacementFromTest() {
+    const E = this._engine(), b = this.book;
+    if (!E || !b || !Store.d.vocabTest) return false;
+    E.load(Store);
+    const u = E.load().user || {};
+    const skipNow = Array.isArray(u.skipBands) ? u.skipBands.slice() : [];
+    const derived = typeof E.effectiveSkipBands === 'function' ? E.effectiveSkipBands(u) : [];
+    const hasPlacement = u.bandPlacement != null || skipNow.length > 0
+      || (u.bandAccuracy && Object.keys(u.bandAccuracy).length > 0);
+    if (hasPlacement) {
+      /* 只剩 bandAccuracy 时，把 ≥80% 的带补回 skipBands，页面立刻恢复“测试已认识”口径。*/
+      if (!skipNow.length && derived.length) {
+        u.skipBands = derived;
+        if (u.bandPlacement == null && typeof E.startBandFromAccuracy === 'function') {
+          const start = E.startBandFromAccuracy(u);
+          if (start != null) u.bandPlacement = start;
+        }
+        E.save(Store);
+        return true;
+      }
+      return false;
+    }
+    const vt = Store.d.vocabTest[b.id];
+    if (!vt || vt.placementDisabled || !vt.placement) return false;
+    const p = vt.placement;
+    try {
+      E.applyPlacement({
+        accuracy: Array.isArray(p.accuracy) ? p.accuracy : [],
+        bandResults: Array.isArray(p.bandResults) ? p.bandResults : [],
+        skipBands: Array.isArray(p.skipBands) ? p.skipBands : [],
+        bandPlacement: p.bandPlacement == null ? null : p.bandPlacement,
+        vocabEstimate: p.vocabEstimate != null ? p.vocabEstimate : vt.estimate,
+        calibrationRoundsLeft: 0,
+      }, Array.isArray(p.correctIds) ? p.correctIds : []);
+      return true;
+    } catch (e) {
+      console.warn('restore placement fail', e);
+      return false;
+    }
   },
 
   /* ---------- 生成学习队列 ----------
@@ -792,7 +940,13 @@ const ViewVocab = {
      * 一律计入（它们本来就是词汇量测试判定的"已认识"），练过/错一次也不会把数字变没。
      * 引擎没有 skipBands（没做词汇量测试）时，退回原来的 L3 未作答口径。*/
     let skippedKnown = seen.size;
-    const bands = (s.user && Array.isArray(s.user.skipBands)) ? s.user.skipBands : [];
+    let bands = (s.user && Array.isArray(s.user.skipBands)) ? s.user.skipBands.slice() : [];
+    /* skipBands 可能被旧迁移/恢复流程清掉，但 bandAccuracy 还在。只要某带正确率
+     * 仍 ≥ 80%，就应当继续算“测试已认识”，否则页面会从 3432/3991 突然掉回 21/3991。*/
+    if (typeof E.effectiveSkipBands === 'function') {
+      const derived = E.effectiveSkipBands(s.user);
+      for (const b of derived) if (!bands.includes(b)) bands.push(b);
+    }
     const Q = this._quiz();
     if (bands.length && Q && typeof Q.bandOf === 'function') {
       const set = new Set(bands.map(Number));
@@ -842,6 +996,11 @@ const ViewVocab = {
     const colors = ['var(--line2)', '#7c5cff', '#f79009', '#2f6bff', '#12b76a'];
     const labels = ['生词', '眼熟', '模糊', '认识', '巩固'];
     const u = s.user || {};
+    /* 有跳过带 / 起点带才算“定级生效”；只剩估算时不能让人误以为已按测试计过已学。*/
+    const placementActive = u.bandPlacement != null || (Array.isArray(u.skipBands) && u.skipBands.length > 0);
+    const estLabel = placementActive && u.placementSource === 'estimate'
+      ? '测试估算已恢复'
+      : (placementActive ? '定级估算' : '测试估算（未跳过）');
     return `
     <div class="card" style="margin-bottom:14px;padding:14px 16px">
       <div class="row" style="align-items:baseline;gap:10px;flex-wrap:wrap">
@@ -849,7 +1008,7 @@ const ViewVocab = {
         <span class="hint" style="margin:0">已学 ${st.learned} · 巩固 ${st.mastered} · 复习中 ${st.reviewing} · 难词 ${st.hard}</span>
         ${skippedKnown0 ? `<span class="tag" title="词汇量测试整带跳过的词已计入顶部「已掌握」">测试跳过 ${skippedKnown0} 词 · 已计入掌握</span>` : ''}
         <span class="sp"></span>
-        ${u.vocabEstimate ? `<span class="tag tag-pri">定级估算 ${u.vocabEstimate}</span>` : ''}
+        ${u.vocabEstimate ? `<span class="tag tag-pri" title="${placementActive ? '词汇量测试定级正在生效' : '只是词汇量估算，未启用测试跳过已知词；顶部「已学」仍按实际学过的词统计'}">${estLabel} ${u.vocabEstimate}</span>` : ''}
         ${u.bandPlacement != null ? `<span class="tag">起点第 ${u.bandPlacement + 1} 带</span>` : ''}
         ${(u.skipBands || []).length ? `<span class="tag tag-ok" title="词汇量测试整带跳过 ${u.skipBands.length} 个词频带，相关词已计入"已掌握"">整带跳过 ${u.skipBands.length} 个频带</span>` : ''}
       </div>
@@ -859,6 +1018,16 @@ const ViewVocab = {
       <div class="row" style="gap:14px;margin-top:6px;font-size:11.5px;color:var(--tx3)">
         ${labels.map((l, i) => `<span>${l} <b>${dist[i]}</b></span>`).join('')}
       </div>
+      ${u.vocabEstimate && !placementActive ? `<div class="hint" style="margin-top:8px;line-height:1.65">
+        这个 <b>${u.vocabEstimate}</b> 是词汇量测试的估算，只作参考；当前<b>没有启用「测试跳过已知词」</b>，
+        所以顶部「已学」仍只统计真正学过的 ${st.learned} 个词。
+        这次测试的逐频带结果没有保存，无法还原具体哪几个词答对；可以按整体估算恢复最容易的几个频带，
+        或重新做一次词汇量测试。
+        <div style="margin-top:8px">
+          <button class="btn btn-s btn-pri" data-act="applyEstimate">按测试估算恢复</button>
+          <span style="margin-left:8px">恢复后可在主按钮「恢复新词」里撤销</span>
+        </div>
+      </div>` : ''}
     </div>`;
   },
 
@@ -1497,6 +1666,7 @@ const ViewVocab = {
        * grade 0 会安排 10 分钟后重来，符合遗忘曲线预期。
        */
       case 'skip': {
+        this._logStudyTick();
         /* 跳过 = 不主动教学，但进抽检池保留复现路径（§6-#2）。不再写"模糊"的 SRS 记录。*/
         const slot = this.cur && this.cur.slot;
         const E = this._engine();
@@ -1517,6 +1687,7 @@ const ViewVocab = {
         break;
       }
       case 'no': {
+        this._logStudyTick();
         /* 点"不认识"→ 揭晓释义（教学卡阶段，不计分）。之后用下面的 0~3 自评决定去向：
          * 自评"不认识/模糊" → 引擎安排本轮重考；自评"认识/很熟" → 只能进抽检池（§6-#2）。*/
         this.revealed = true;
@@ -1550,6 +1721,7 @@ const ViewVocab = {
       return;
     }
     this._answeredFor = this._qSeq;
+    this._logStudyTick();
 
     const slot = this.cur.slot;
     const E = this._engine();
@@ -1591,6 +1763,7 @@ const ViewVocab = {
     });
     if (this._answeredFor === this._qSeq) return;
     this._answeredFor = this._qSeq;
+    this._logStudyTick();
     /* 无论答对答错，都显示"其他选项"对应的英文单词：
      * 答错时用来解释每条释义属于哪个词；答对时用来顺便认识干扰词。*/
     $$('.choice').forEach((el, k) => {
@@ -1663,6 +1836,7 @@ const ViewVocab = {
     const val = inp.value.trim().toLowerCase();
     const fb = $('#spellFb');
     if (!val) { App.toast('请先拼写', ''); return; }
+    this._logStudyTick();
     const right = val === w.w.toLowerCase();
     const E = this._engine(), Q = this._quiz();
     let nr;
@@ -1712,11 +1886,25 @@ const ViewVocab = {
     }
   },
 
-  /** 本模块停留秒数（累计多次进出） */
-  _pageSeconds() {
-    this._accSeconds = (this._accSeconds || 0) + App.pageSeconds();
+  /**
+   * 取“自上次记录以来”的秒数。
+   * 旧版 _pageSeconds() 返回累计值，只能在一轮结束时调用一次；逐题记录必须用增量，
+   * 否则会把同一段时长重复累加。*/
+  _takeSeconds() {
+    const sec = App.pageSeconds();
     App.resetPageTimer();
-    return this._accSeconds;
+    return Math.max(0, Math.round(sec));
+  },
+  _pageSeconds() { return this._takeSeconds(); },
+
+  /** 逐题记录学习时长：中途退出也计入树园成长，不再等整轮结束 */
+  _logStudyTick() {
+    const sec = this._takeSeconds();
+    if (sec <= 0) return;
+    try {
+      if (typeof Store.logStudyTime === 'function') Store.logStudyTime(sec);
+      else if (typeof Garden !== 'undefined' && typeof Garden.recordActivity === 'function') Garden.recordActivity(sec);
+    } catch (e) { console.warn('study time log fail', e); }
   },
 
   /** 结束一轮学习：记录时长与掌握正确率，供树园评估当日成长质量 */
@@ -1725,7 +1913,7 @@ const ViewVocab = {
     const total = rep ? rep.total : (this.queue || []).length;
     if (!total) return;
     const good = rep ? rep.correct : (this._goodCount || 0);
-    Store.logActivity({ kind: 'words', seconds: this._pageSeconds(), correct: good, total });
+    Store.logActivity({ kind: 'words', seconds: this._takeSeconds(), correct: good, total });
     /* 正向框架：只报"征服 / 抽检通过"，不报"错了几个" */
     const parts = ['本轮完成 ' + total + ' 词'];
     if (rep) {

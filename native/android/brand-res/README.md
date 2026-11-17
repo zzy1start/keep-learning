@@ -11,7 +11,7 @@
 
 - 2026-10-29 换标时，图标只用一次性脚本写进了本机 `android/`，脚本又在未入库的 `work/` 下；
 - 当天 21:01 重新生成 Android 工程后，品牌图标被模板覆盖；
-- 结果 1.1.48 的桌面图标/启动页退回 Capacitor 默认素材，与宣传片/应用内 ZY logo 不一致。
+- 结果 1.1.48 的桌面图标/启动页退回 Capacitor 默认素材，与宣传片/应用内 logo 不一致。
 
 因此把生成好的品牌素材原样入库，由 `tools/install-brand-res.cjs` 在每次重建工程后覆盖到
 `android/app/src/main/res/`，并在 CI 用 `tools/check-brand-res.cjs` 做防回归校验。
@@ -34,9 +34,11 @@ adaptive icon 的背景色由 `android/app/src/main/res/values/ic_launcher_backg
 
 ## 由来
 
-2026-10-29 品牌换标（蓝青渐变 ZY 标）时，由 `work/logo-assets/generate_brand_icons.py`
-（依赖未入库的 `work/logo-source/new-logo.png`）生成；2026-11-02 从 1.1.47 官方 debug 包
-（构建于覆盖之前）里原样提取保存，字节与当时生成的一致。
+2026-11-14 品牌换标（蓝青书本/对话气泡标）时，由
+`work/logo-assets/generate_new_brand_card.py` 从
+`work/logo-source/new-logo-2026-11-14.png` 生成：
+web/PWA、legacy/round 桌面图标、开屏 splash 使用原图的圆角卡片裁切；
+adaptive / maskable 前景使用抠出的书本标记，避免白色卡片被系统遮罩裁成方块。
 
 ## 使用
 
@@ -45,4 +47,5 @@ node tools/install-brand-res.cjs   # 手动装到当前 android/ 工程（init-a
 node tools/check-brand-res.cjs     # 校验文件清单/尺寸/SHA-256；android/ 存在时做逐字节比对
 ```
 
-换标时：替换本目录文件 → 更新 `tools/check-brand-res.cjs` 的 `EXPECTED` 清单 → 重新构建。
+换标时：替换本目录文件 → 更新 `tools/check-brand-res.cjs` 的 `EXPECTED` 清单 →
+重新执行 `node tools/install-brand-res.cjs` → 重新构建。

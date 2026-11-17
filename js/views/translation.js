@@ -2,13 +2,13 @@
  *
  * 【为什么独立成一个模块，而不是继续放在写作页的 tab 里】
  * 1. 翻译与写作的训练目标不同：写作练"输出组织"，翻译练"准确转换"，
- *    评分维度也不同（翻译看 TR/CC/LR/GRA 四维，写作看 TR15/CC15/LR15/GRA15）。
+ *    评分维度也不同（翻译看 TR/CC/LR/GRA 四维，写作看同样的四维，但四六级写作总分 15）。
  *    混在一个页面里，标签越堆越多，反而找不到入口。
  * 2. 翻译是高频独立动作，值得占一个侧栏位置。
  *
  * 【复用而非重写】
  * - 题目来源：Dict.content.writing 里的翻译题（导入真题时由 AI 识别入库）
- * - 评分：AI.gradeTranslation()（考研阅卷口径，四维评分 + 本地对齐校正）
+ * - 评分：AI.gradeTranslation()（四六级/考研阅卷口径，四维评分 + 本地对齐校正）
  * - 结果渲染：写作页的 gradeHTML() 同款结构（保持视觉一致）
  * - 独立度量：js/translate-metric.js 的 chrF（sacrebleu 口径）+ 完整性检查
  *
@@ -87,13 +87,18 @@ const ViewTranslate = {
     const typed = input && input.value !== '' ? Number(input.value) : NaN;
     if (Number.isFinite(typed) && typed > 0) return Math.min(100, Math.round(typed));
     const stored = Number(Store.d && Store.d.translation && Store.d.translation.totalScore);
-    if (Number.isFinite(stored) && stored > 0) return Math.min(100, Math.round(stored));
     const explicit = Number(t.expectScore);
-    if (Number.isFinite(explicit) && explicit > 0) return Math.min(100, Math.round(explicit));
+    const meta = [t.level, t.exam, t.examPaper, t.session, t.title].filter(Boolean).join(' ');
+    const standard = (typeof AI !== 'undefined' && AI && typeof AI.examMax === 'function')
+      ? AI.examMax(t, 'translation')
+      : (t.examPaper === 'english-1' ? 10 : t.examPaper === 'english-2' ? 15 : 15);
+    /* 四六级/考研真题按标准分制，旧数据里的 expectScore=30 不能覆盖：
+     * 四六级翻译 15、考研英语一 10、英语二 15。自定义题才用自填 expectScore。*/
+    if (/CET|四级|六级|英语一|英语二|考研|english[-_ ]?[12]/i.test(meta)) return standard;
+    if (Number.isFinite(explicit) && explicit > 0 && explicit !== 30) return Math.min(100, Math.round(explicit));
+    if (Number.isFinite(stored) && stored > 0 && stored !== 30) return Math.min(100, Math.round(stored));
     if (this.mode === 'sentence') return 20;
-    if (t.examPaper === 'english-2') return 15;   // 考研英语（二）翻译一段，15 分
-    if (t.examPaper === 'english-1') return 10;   // 考研英语（一）翻译 5 句，10 分
-    return 15;
+    return standard;
   },
 
   /** 源文文本：整篇题在 translationText/prompt，单句题在 en/cn */
@@ -909,7 +914,7 @@ const ViewTranslate = {
       const s = (r && r.score) || {};
       main = `<div class="ex-item">
         ${r && r.gradingFailed ? '暂未评分：' + esc(r.errMsg || '请重试')
-          : `得分 <b>${esc(String(s.total || 0))}</b> / ${esc(String(s.max || 30))} 分`}
+          : `得分 <b>${esc(String(s.total || 0))}</b> / ${esc(String(s.max || 15))} 分`}
         ${r && r.comment ? `<div class="cn">${esc(r.comment)}</div>` : ''}
       </div>`;
     }

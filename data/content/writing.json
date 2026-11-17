@@ -41,7 +41,7 @@
       "level": "CET-6",
       "genre": "社会热点",
       "limit": 40,
-      "expectScore": 30,
+      "expectScore": 15,
       "minWords": 150,
       "outline": [
         "引入争议（两种立场）",
@@ -60,7 +60,7 @@
       "level": "CET-6",
       "genre": "教育议题",
       "limit": 40,
-      "expectScore": 30,
+      "expectScore": 15,
       "minWords": 150,
       "outline": [
         "表明立场",
@@ -79,7 +79,7 @@
       "level": "CET-6",
       "genre": "教育议题",
       "limit": 40,
-      "expectScore": 30,
+      "expectScore": 15,
       "minWords": 150,
       "outline": [
         "指出现象：重记忆轻思考",
@@ -98,7 +98,7 @@
       "level": "CET-6",
       "genre": "社会热点",
       "limit": 40,
-      "expectScore": 30,
+      "expectScore": 15,
       "minWords": 160,
       "outline": [
         "引出两难选择",

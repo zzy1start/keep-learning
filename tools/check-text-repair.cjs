@@ -1,6 +1,8 @@
 /* ============ check-text-repair.cjs : 导入文本修复自检 ============ */
 /* 夹具全部是**真实脏数据**：前两条来自 data/content 里已经入库的导入条目
- * （四级翻译原文 / 阅读 typeEvidence），用来保证修好之后还能复现当初的损坏形态。 */
+ * （四级翻译原文 / 阅读 typeEvidence），用来保证修好之后还能复现当初的损坏形态。
+ * 页脚夹具来自 2023-06 六级阅读：PDF 把 "2023 年 3 月英语六级真题第 1 套第 5 页，
+ * 共 8 页" 抽成一行粘进句子中间（"…but … also deprives…"）。 */
 const assert = require('node:assert/strict');
 const path = require('node:path');
 const fs = require('node:fs');
@@ -19,7 +21,9 @@ const FIXED_TRANSLATION = '在中国传统文化中，亲朋好友之间互赠�
   + '接受礼物时会表达谢意，并适时回赠礼物，以增进彼此的融洽关系。';
 
 let failed = 0;
+let total = 0;
 function check(name, run) {
+  total++;
   try { run(); console.log('PASS ' + name); }
   catch (error) { failed++; console.error('FAIL ' + name + ': ' + error.message); }
 }
@@ -175,5 +179,79 @@ check('浏览器加载路径：sbd 挂到 window.tokenizer，TextRepair 能取�
   assert.equal(two.length, 2);
   assert.ok(two[0].startsWith('Mr. Smith'), '不应把 Mr. 切成独立句：' + two[0]);
 });
+/* ---------- ④ 页眉/页脚：真实脏数据 + 误删反例 ---------- */
+// 真实用户样本：2023-06 六级阅读段落 I，页脚被 PDF 抽成一行、粘进句子中间
+const REAL_FOOTER_GLUED = 'At the same time, when a system no longer provides opportunities for the majority to participate in wealth building, it not only robs those who are excluded from opportunities, but 2023 年 3 月英语六级真题第 1 套第 5 页，共 8 页 also deprives them of their dignity.';
+const REAL_FOOTER_FIXED = 'At the same time, when a system no longer provides opportunities for the majority to participate in wealth building, it not only robs those who are excluded from opportunities, but also deprives them of their dignity.';
+
+check('页脚①：正文中间粘着的页脚被删除，两侧单词不粘连（真实用户样本）', () => {
+  assert.equal(T.stripPageFurniture(REAL_FOOTER_GLUED), REAL_FOOTER_FIXED);
+  assert.equal(T.fix(REAL_FOOTER_GLUED), REAL_FOOTER_FIXED);
+  assert.ok(!/页|真题/.test(T.fix(REAL_FOOTER_GLUED)), '页脚文字必须全部删掉');
+  assert.ok(T.fix(REAL_FOOTER_GLUED).includes('but also deprives'), '删除处要补一个空格，不能粘成 butalso');
+});
+
+check('页脚②：真题卷头（独立行 / 行内 / 带年份月份）被删除', () => {
+  assert.equal(T.fix('Directions: Read the passage carefully.\n2023年6月大学英语六级考试真题（第1套）\nPassage One'),
+    'Directions: Read the passage carefully.\nPassage One');
+  assert.equal(T.fix('Passage One 2023 年 3 月英语六级真题'), 'Passage One');
+  assert.equal(T.fix('2023 年 6 月大学英语六级考试真题（第 1 套） Passage One'), 'Passage One');
+  assert.equal(T.stripPageFurniture('大学英语六级考试真题（第1套）'), '');
+  assert.equal(T.stripPageFurniture('2023年6月大学英语六级考试真题（第1套）'), '');
+});
+
+check('页脚③：页码形态（第X页共Y页 / 连字符 / Page X of Y）整行删除', () => {
+  for (const s of ['第 5 页 共 8 页', '第5页，共8页', '第 5 页，共 8 页', '- 5 -', '— 5 —',
+    'Page 5 of 8', 'Page 5/8', '第 5 页', '共 8 页', 'Page 5']) {
+    assert.equal(T.stripPageFurniture(s), '', '应整行删除：' + s);
+  }
+  assert.equal(T.fix('the passage ends here. Page 5 of 8'), 'the passage ends here.');
+  assert.equal(T.fix('第一段结束。\n- 5 -\n第二段开始。'), '第一段结束。\n第二段开始。');
+  assert.equal(T.fix('第一段结束。\n第 5 页\n\n第二段开始。'), '第一段结束。\n\n第二段开始。');
+});
+
+check('页脚④：页脚把一句话切成两行（PDF 分页）时接回同一句', () => {
+  const stored = 'At the same time, when a system no longer provides opportunities for the majority to participate in wealth building, it not only robs those who are excluded from opportunities, but\n\n2023 年 3 月英语六级真题第 1 套第 5 页，共 8 页 also deprives them of their dignity.';
+  assert.equal(T.stripPageFurniture(stored), REAL_FOOTER_FIXED);
+  assert.equal(T.fix(stored), REAL_FOOTER_FIXED);
+  assert.ok(!T.fix(stored).includes('\n'), '页脚两侧的同一句不能被拆成两段');
+  // 行内页脚（不贴行首）同样只留一个空格
+  assert.equal(T.fix('evidence matches 2023 年 3 月英语六级真题第 1 套第 8 页，共 8 页 the conclusions of the study.'),
+    'evidence matches the conclusions of the study.');
+});
+
+check('页脚反例：正文里的普通数字/套别/日期/页码引用不删', () => {
+  const keep = [
+    '这套题是第 1 套题',
+    '第 1 套题',
+    '2023 年',
+    '2023 年 6 月',
+    '2023 年 6 月英语六级考试',
+    '英语六级考试',
+    '他翻到第 5 页',
+    '请翻到第 5 页。',
+    'Questions 1 to 5 are based on the following passage.',
+    'The number 2023 appears twice in the text.',
+    'Passage One 第 1 套',
+  ];
+  for (const s of keep) assert.equal(T.fix(s), s, '不该改动：' + s);
+  assert.equal(T.fix('第 5 页'), '', '但独立成行的"第 5 页"是页码，必须删');
+});
+
+check('页脚反例：缺强证据时"第 N 套 / 年月"不猜，强证据在旁边才一起删', () => {
+  assert.equal(T.stripPageFurniture('第 1 套'), '第 1 套');
+  assert.equal(T.stripPageFurniture('2023 年 3 月'), '2023 年 3 月');
+  assert.equal(T.stripPageFurniture('这本真题第 1 套题很难'), '这本真题第 1 套题很难');
+  assert.equal(T.stripPageFurniture('2023 年 3 月英语六级真题 第 1 套 第 5 页，共 8 页'), '');
+  assert.equal(T.stripPageFurniture('2023 年 6 月大学英语六级考试真题（第1套）'), '');
+});
+
+check('页脚：stripPageFurniture 已导出、可重复调用（幂等）', () => {
+  assert.equal(typeof T.stripPageFurniture, 'function');
+  const once = T.fix(REAL_FOOTER_GLUED);
+  assert.equal(T.stripPageFurniture(once), once);
+  assert.equal(T.stripPageFurniture(null), '');
+});
+
 if (failed) process.exitCode = 1;
-else console.log('全部 19 项文本修复检查通过');
+else console.log('全部 ' + total + ' 项文本修复检查通过');

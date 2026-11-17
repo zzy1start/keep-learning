@@ -33,6 +33,44 @@ function readWritingImage(file) {
   });
 }
 
+/** 从题目里取“必须以这句话开头”的引文；没有则返回空。*/
+function requiredOpeningSentence(prompt) {
+  const m = /(?:begin|start|开头)[^"“]{0,80}["“]([^"”]{20,})["”]/i.exec(String(prompt || ''));
+  return m ? m[1].trim() : '';
+}
+
+/**
+ * 题目明确要求“以给定句子开头”时，代码侧再兜一道硬门槛：
+ * 不依赖模型是否老实填 taskResponse，缺开头句直接压到最低档（≤33%）。
+ */
+function capMissingOpening(result, prompt, essayText, max) {
+  if (!result || !result.score) return '';
+  const opening = requiredOpeningSentence(prompt);
+  if (!opening) return '';
+  const norm = s => String(s || '').toLowerCase().replace(/[^a-z0-9]+/g, ' ').trim();
+  const want = norm(opening);
+  const got = norm(essayText);
+  if (!want || got.startsWith(want)) return '';
+  const cap = Math.round(max * 0.33 * 10) / 10;
+  const current = Math.max(0, Number(result.score.total) || 0);
+  if (current > cap) {
+    const ratio = current > 0 ? cap / current : 0;
+    ['TR', 'CC', 'LR', 'GRA'].forEach(k => {
+      if (Number.isFinite(Number(result.score[k]))) {
+        result.score[k] = Math.round(Number(result.score[k]) * ratio * 10) / 10;
+      }
+    });
+    result.score.total = cap;
+  }
+  result.score.max = max;
+  result.offTopic = true;
+  const note = '【未按题目要求开头】题目要求以“' + opening.slice(0, 80) + (opening.length > 80 ? '…' : '') + '”开头，本文未这样开头，按最低档处理。';
+  if (!/未按题目要求|偏题|跑题/.test(String(result.comment || ''))) {
+    result.comment = note + ' ' + String(result.comment || '');
+  }
+  return note;
+}
+
 /**
  * 防止极短作文被模型或本地规则给出虚高分。
  * 只用于完整作文题；单句翻译练习由其自身评分标准处理。
@@ -62,7 +100,7 @@ function capIncompleteEssayScore(result, essayText, minWords) {
   }
   if (!reason) return '';
 
-  const max = Math.max(1, Number(result.score.max) || 30);
+  const max = Math.max(1, Number(result.score.max) || 15);
   const cap = Math.round(max * ratio * 10) / 10;
   const current = Math.max(0, Number(result.score.total) || 0);
   if (current <= cap) return '';
@@ -79,7 +117,7 @@ const ViewWrite = {
   essay: '',
   curTask: null,
   result: null,
-  sugTab: 'all',
+  sugTab: 'structure',
   inkMode: false,
   startAt: 0,
   left: 0,
@@ -91,6 +129,15 @@ const ViewWrite = {
   _memoListening: false,
 
   _isSentenceTab() { return this.tab === 'sentence'; },
+
+  /** 本题标准分制满分：四六级写作/翻译 15，考研写作 20、英语一翻译 10、英语二翻译 15。*/
+  _maxScore(task, isTranslation, isSentence) {
+    if (isSentence) return 20;
+    if (typeof AI !== 'undefined' && AI && typeof AI.examMax === 'function') {
+      return AI.examMax(task, isTranslation ? 'translation' : 'writing');
+    }
+    return 15;
+  },
 
   /* ---------- 最近输入记忆（最近 5 条，存 Store.d.writingHistory） ----------
    * 写作页有多个 tab（真题写作/单句/考研翻译/AI 题），记录里存 tab 与题目 id；
@@ -350,7 +397,10 @@ const ViewWrite = {
     this.taskList = list;
     const outlineVisible = !!(this.result && !this.result.ocrFailed && !this.result.gradingFailed);
     const limit = isSentence ? 15 : (task && task.limit || (isTranslation ? 30 : 40));
-    const expect = isSentence ? 20 : (task && task.expectScore || (isTranslation ? '未标注' : 30));
+    const expect = isSentence ? 20 : this._maxScore(task, isTranslation, isSentence);
+    /* 旧存档可能把手填满分存成 30；四六级标准分制是 15，不能让它继续显示/生效。*/
+    const storedTotal = Number(Store.d.writing && Store.d.writing.totalScore) || 0;
+    const showStoredTotal = storedTotal > 0 && !(storedTotal === 30 && expect === 15);
     const words = this._inputCount();
 
     root.innerHTML = `
@@ -389,7 +439,7 @@ const ViewWrite = {
         <span class="row" style="gap:5px">
           <span class="hint" style="font-size:12px">本题总分</span>
           <input class="inp" id="wTotal" type="number" min="1" step="1" style="width:70px;text-align:center"
-            placeholder="AI估算" value="${Store.d.writing && Store.d.writing.totalScore ? Store.d.writing.totalScore : ''}" title="留空则由 AI 根据题目来源自动估算">
+            placeholder="${expect}" value="${showStoredTotal ? storedTotal : ''}" title="留空则按题目标准分制：四六级写作 15 分、考研 20 分">
         </span>
       </div>
     </div>
@@ -582,7 +632,7 @@ const ViewWrite = {
         <input class="inp" id="cuC" placeholder="选填"></div>
       <div class="row" style="gap:8px">
         <div class="fld sp"><label class="lab">限时（分钟）</label><input class="inp" type="number" id="cuL" value="40"></div>
-        <div class="fld sp"><label class="lab">满分</label><input class="inp" type="number" id="cuS" value="30"></div>
+        <div class="fld sp"><label class="lab">满分</label><input class="inp" type="number" id="cuS" value="15"></div>
       </div>
       <button class="btn btn-pri btn-blk" id="cuOk">开始写作</button>`, b => {
       $('#cuOk', b).onclick = () => {
@@ -597,7 +647,7 @@ const ViewWrite = {
         this.curTask = {
           id: 'custom' + Date.now(), title, cn: $('#cuC', b).value,
           level: '自定义', genre: '自定义', limit: +$('#cuL', b).value || 40,
-          expectScore: +$('#cuS', b).value || 30, minWords: 100,
+          expectScore: +$('#cuS', b).value || 15, minWords: 100,
         };
         // 选中筛选器里的"全部"，避免被年份/场次过滤掉而看不到题目
         this.sel = { level: 'all', year: 'all', session: 'all', no: `id:${this.curTask.id}` };
@@ -765,6 +815,7 @@ const ViewWrite = {
           const i = arr.indexOf(task);
           if (i >= 0) arr.splice(i, 1);
           Importer.unmarkMine('writing', task.id);
+          if (typeof Importer.forgetImportedPaper === 'function') Importer.forgetImportedPaper(task);
           this.curTask = arr[0];
           this.sel = { ...(this.sel || {}), no: 'all' };
           this._resetTaskState();
@@ -858,9 +909,11 @@ const ViewWrite = {
     const imgs = this._imgs || [];
     const hasImg = imgs.length > 0;
     const isExamTranslation = this.tab === 'translation';
-    box.innerHTML = `<div class="row" style="justify-content:center;padding:30px"><span class="spin"></span>
-      <span class="dots">${hasImg ? 'AI 正在识别图片并评分' : isExamTranslation ? 'AI 正在检查中文译文并评分' : (AI.ready ? 'AI 正在批改' : '本地规则评分中')}</span></div>`;
     const isTr = this._isSentenceTab();
+    /* 单句练习也是翻译（不是作文），必须走翻译评分口径，不能拿写作 rubric 打分。*/
+    const isTranslationTask = isExamTranslation || isTr;
+    box.innerHTML = `<div class="row" style="justify-content:center;padding:30px"><span class="spin"></span>
+      <span class="dots">${hasImg ? 'AI 正在识别图片并评分' : isTranslationTask ? 'AI 正在检查译文并评分' : (AI.ready ? 'AI 正在批改' : '本地规则评分中')}</span></div>`;
     const dir = this.trDir === 'cn2en' ? 'cn2en' : 'en2cn';
     const prompt = isTr
       ? (dir === 'cn2en'
@@ -868,23 +921,21 @@ const ViewWrite = {
         : `将下面的英文句子翻译成中文（英译汉练习）：\n${task.en}`)
       : task.prompt || task.title;
 
-    // 总分：人工填写优先，否则 AI 依据题目来源估算
-    const manual = Store.d.writing && Store.d.writing.totalScore;
-    let totalScore = manual > 0 ? manual : (task.expectScore > 0 ? task.expectScore : null);
-    if (!totalScore) {
-      totalScore = await AI.estimateTotalScore({
-        level: task.level, genre: task.genre, title: task.title || prompt,
-      });
-    }
+    /* 总分：标准分制优先（四六级写作/翻译 15，考研写作 20、英语一翻译 10、英语二翻译 15）。
+     * 人工填写仍可覆盖，但旧版遗留的 30 分默认值不再套到四六级题上。*/
+    const standardMax = this._maxScore(task, isExamTranslation, isTr);
+    let manual = Store.d.writing && Store.d.writing.totalScore;
+    if (Number(manual) === 30 && standardMax === 15) manual = 0;
+    const totalScore = manual > 0 ? Math.min(100, Math.round(Number(manual))) : standardMax;
 
     let r;
     try {
-      r = isExamTranslation ? await AI.gradeTranslation(task, this.essay, imgs, totalScore)
-        : hasImg ? await AI.gradeWritingImages(prompt, this.essay, imgs, totalScore)
-          : await AI.gradeWriting(prompt, this.essay);
+      r = isTranslationTask ? await AI.gradeTranslation(task, this.essay, imgs, totalScore, { direction: dir })
+        : hasImg ? await AI.gradeWritingImages(prompt, this.essay, imgs, totalScore, { max: totalScore, level: task.level })
+          : await AI.gradeWriting(prompt, this.essay, { max: totalScore, level: task.level, minWords: task.minWords });
     } catch (e) {
       App.toast('评分失败：' + (e.message || e).slice(0, 60), 'err');
-      r = isExamTranslation ? { gradingFailed: true, errMsg: '翻译批改未完成：' + String(e.message || e).slice(0, 220) } : null;
+      r = isTranslationTask ? { gradingFailed: true, errMsg: '翻译批改未完成：' + String(e.message || e).slice(0, 220) } : null;
     }
     if (r && (r.ocrFailed || r.gradingFailed)) {
       // 图片没有识别出作文时不计入学习统计，也不伪造 0 分作文记录。
@@ -899,7 +950,7 @@ const ViewWrite = {
      * 出现「18/15」这种得分超过满分的情况。
      * 正确顺序：先用**原满分**算得分率，再等比缩放到本题满分，并夹在满分以内。*/
     if (r && r.score) {
-      const oldMax = +r.score.max || 30;          // AI 自报的满分
+      const oldMax = +r.score.max || 15;          // AI 自报的满分（四六级标准 15）
       const oldTotal = +r.score.total || 0;
       const newMax = +totalScore || oldMax;
       if (newMax > 0 && oldMax > 0) {
@@ -911,7 +962,9 @@ const ViewWrite = {
     }
     // 用照片 OCR 正文或输入框正文校验完整度，约束 AI/本地评分的虚高下限。
     // 句子翻译练习不套用作文篇幅规则。
-    if (r && !isSentence && !isExamTranslation) {
+    if (r && !isTranslationTask) {
+      /* 题目要求“以给定句子开头”时，先走代码侧硬门槛，再按篇幅校正。*/
+      capMissingOpening(r, prompt, r.ocrText || this.essay, totalScore);
       capIncompleteEssayScore(r, r.ocrText || this.essay, task.minWords || 150);
     }
     this.result = r;
@@ -942,7 +995,7 @@ const ViewWrite = {
     return this._accSeconds;
   },
 
-  /** 评分结果内的建议分类页签（综合/结构/语言/词汇升级/句式） */
+  /** 评分结果内的建议分类页签（内容与结构/语言/词汇升级/句式；互不重复） */
   _bindGradeTabs() {
     const box = $('#gradeBox');
     if (!box) return;
@@ -953,7 +1006,7 @@ const ViewWrite = {
       if (sb) sb.innerHTML = sugHTML(this.result, k);
       on(sb, 'click', '[data-say]', (ev, el) => Speech.speak(el.dataset.say, { rate: .85 }));
     });
-    const first = $('[data-sug="all"]', box);
+    const first = $('[data-sug="structure"]', box);
     if (first) first.classList.add('on');
   },
 
@@ -1066,7 +1119,7 @@ function gradeHTML(r) {
       <button class="btn btn-xs btn-gh" data-act="grade" style="margin-top:8px">重试识别</button>
     </div>`;
   const s = r.score || {};
-  const max = +s.max || 30;
+  const max = +s.max || 15;
   const total = Math.max(0, Math.min(max, +s.total || 0));   // 夹在满分以内
 
   /* 四维按本题满分等比分配，且**总和严格等于总分**。
@@ -1099,7 +1152,9 @@ function gradeHTML(r) {
       <div class="txt"><b>${total}</b><span>/ ${max} 分</span></div>
     </div>
     <div style="flex:1">
-      <div class="hint" style="margin:-4px 0 8px">本题满分 ${max} 分，得 ${total} 分（得分率 ${Math.round(pct * 100)}%）</div>
+      <div class="hint" style="margin:-4px 0 8px">本题满分 ${max} 分，得 ${total} 分（得分率 ${Math.round(pct * 100)}%）${max === 15
+        ? `　·　710 分制报道分约 ${Math.round((total / 15) * 106.5 * 10) / 10} 分（写作/翻译各占 15%）`
+        : ''}</div>
       ${dims.map(([n, v]) => `
         <div class="dim-row"><span class="n">${n}</span>
           <span class="bar"><i style="width:${Math.round((v / perMax) * 100)}%"></i></span>
@@ -1119,18 +1174,19 @@ function gradeHTML(r) {
   <div style="font-size:13.5px;line-height:1.8;color:var(--tx2)">${esc(r.comment || '')}</div>
   <div class="sec-t">修改建议</div>
   <div class="seg" style="margin-bottom:11px">
-    ${[['all', '综合'], ['structure', '结构'], ['language', '语言'], ['vocab', '词汇升级'], ['grammar', '句式']]
+    ${(r.translation
+      ? [['structure', '语义与信息'], ['language', '译文表达'], ['vocab', '词汇升级'], ['grammar', '语法规范']]
+      : [['structure', '内容与结构'], ['language', '语言表达'], ['vocab', '词汇升级'], ['grammar', '句式语法']])
       .map(([k, t]) => `<button class="mini-tab" data-sug="${k}">${t}</button>`).join('')}
   </div>
-  <div id="sugBox">${sugHTML(r, 'all')}</div>`;
+  <div id="sugBox">${sugHTML(r, 'structure')}</div>`;
 }
 function sugHTML(r, tab) {
   const s = r.suggestions || {};
   const list = [];
-  if (tab === 'all') {
-    (s.structure || []).forEach(x => list.push(['结构', x]));
-    (s.language || []).forEach(x => list.push(['语言', x]));
-  } else if (tab === 'structure') (s.structure || []).forEach(x => list.push(['结构', x]));
+  /* 只显示当前分类：旧“综合”页签会把 structure + language 再抄一遍，
+   * 用户点“结构”看到的和“综合”完全重复。现在四个页签互斥。*/
+  if (tab === 'structure') (s.structure || []).forEach(x => list.push([r.translation ? '语义/信息' : '内容/结构', x]));
   else if (tab === 'language') (s.language || []).forEach(x => list.push(['语言', x]));
   else if (tab === 'vocab') return (s.vocab || []).map((v, i) => {
     const fix = v.better || v.fix || '';
@@ -1162,3 +1218,5 @@ window.ViewWrite = ViewWrite;
  * 与其复制一份渲染逻辑，不如共用同一份——两处各改一半必然对不上。*/
 window.gradeHTML = gradeHTML;
 window.sugHTML = sugHTML;
+window.capMissingOpening = capMissingOpening;
+window.requiredOpeningSentence = requiredOpeningSentence;

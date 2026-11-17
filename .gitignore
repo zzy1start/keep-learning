@@ -71,3 +71,8 @@ work/personal-content-backup/
 *.7z
 *.hprof
 .kotlin/
+
+# ===== 发布物料（视频/海报体积大，公开分发走网盘与 Release，不入库）=====
+/deliverables/
+/tmp/
+/*.mp3

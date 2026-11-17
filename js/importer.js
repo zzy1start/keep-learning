@@ -326,6 +326,51 @@ function clozeFromParagraphs(paragraphs, numbers) {
   return markClozeNumbers(text, numbers);
 }
 
+/** 段落匹配正文：按原卷印出的 A) B) C)… 字母重切段落，不依赖 AI 的分段。
+ * 【真实 bug（2023-03 六级第 1 套）】H 段跨页：第 4 页以 "...but" 结尾，
+ * 第 5 页页脚之后才接 "also deprives..."。PDF 按页用空行连接，AI 把 H 拆成
+ * H/I 两段，后面所有字母右移一位（界面里的 K 段其实是原卷 J 段），段落匹配
+ * 答案全部错位。原卷字母是权威来源；这里按字母重切，页脚/换行交给后续
+ * cleanImportedParagraphs 清洗。解析不可靠时返回 null，保留 AI 结果。*/
+function parseParagraphMatchingSource(raw) {
+  const text = String(raw || '').replace(/\r\n?/g, '\n');
+  if (!text) return null;
+  const lines = text.split('\n');
+  const MARK = /^[ \t]*([A-Z])[ \t]*[).、:：][ \t]*(\S.*)$/;
+  const QUESTION_LINE = /^[ \t]*\d{2,3}[ \t]*[.、)][ \t]+\S/;
+  let best = null;
+  for (let i = 0; i < lines.length; i++) {
+    if (!/^[ \t]*A[ \t]*[).、:：][ \t]+\S/.test(lines[i])) continue;
+    const blocks = [];
+    let cur = null;
+    let last = 64;                                  // 'A'.charCodeAt(0) - 1
+    for (let j = i; j < lines.length; j++) {
+      const line = lines[j];
+      if (QUESTION_LINE.test(line)) break;          // 36. 题干开始，正文结束
+      const mark = line.match(MARK);
+      if (mark) {
+        const code = mark[1].charCodeAt(0);
+        const skipI = code === last + 2 && mark[1] === 'J';   // 少数卷子不用 I 段
+        if (code !== last + 1 && !skipI) break;     // 字母不连续：不是这一段
+        last = code;
+        if (cur) blocks.push(cur);
+        cur = { label: mark[1], text: mark[2] };
+        continue;
+      }
+      if (cur) cur.text += ' ' + line;
+    }
+    if (cur) blocks.push(cur);
+    if (blocks.length < 8) continue;                // 其它题型也有 A)-D)，排除
+    if (!blocks.every(block => block.text.replace(/\s+/g, '').length >= 20)) continue;
+    if (!best || blocks.length > best.length) best = blocks;
+  }
+  if (!best) return null;
+  return best.map(block => ({
+    label: block.label,
+    text: block.text.replace(/\s+/g, ' ').trim(),
+  }));
+}
+
 /** 阅读条目入库前补全：
  *  · section-a：q = 空位所在句；opts = 词库（15 选 1 的候选集）
  *  · section-b：q = 陈述句；opts = 段落字母
@@ -363,6 +408,9 @@ function completeImportedReadingItem(item) {
       q.a = sectionAnswerLetter(q.a, bank);
     });
   } else if (type === 'section-b') {
+    /* 原卷字母重切：AI 的 paragraphs 可能因跨页把一段拆成两段（见 parseParagraphMatchingSource）*/
+    const parsedParagraphs = parseParagraphMatchingSource(item.__sourceText || '');
+    if (parsedParagraphs) item.paragraphs = parsedParagraphs;
     const labels = (Array.isArray(item.paragraphs) ? item.paragraphs : []).map((para, i) =>
       String((para && (para.label || para.letter)) || String.fromCharCode(65 + i)).toUpperCase());
     questions.forEach(q => {
@@ -1023,10 +1071,10 @@ confidence 必须为 0 到 1 的数字。evidence 只摘录或概述文档中可
         sourceName: f.name,
       };
       meta.fileKey = await self._fileKey(f);
-      const dup = self._dupLookup(meta.fileKey, meta);
+      const dup = self._dupLookup(meta.fileKey, meta, self.overwrite);
       if (dup) {
         const where = (dup.year ? dup.year + ' 年 ' : '') + (dup.session ? sessionLabel(dup.session) : '') + (dup.setNo ? ' · 第 ' + dup.setNo + ' 套' : '');
-        results.push({ file: f.name, ok: false, msg: '已导入过这套题（' + where + '），已跳过' });
+        results.push({ file: f.name, ok: false, msg: '已导入过这套题（' + where + '），已跳过。如需修复导入，请勾选「重新导入并覆盖」后再试' });
         drawProgress('跳过 ' + f.name + '（已导入过）');
         continue;
       }
@@ -1174,7 +1222,9 @@ confidence 必须为 0 到 1 的数字。evidence 只摘录或概述文档中可
   },
 
   /** 查重：先按文件指纹；再按 年份+场次+套别 检查已入库的导入记录 */
-  _dupLookup(key, meta) {
+  _dupLookup(key, meta, ignoreContent = false) {
+    /* 覆盖重导：文件指纹与"同套内容"都不再挡，由 _putImported 原地替换 */
+    if (ignoreContent) return null;
     const reg = (Store.d && Store.d.importedPapers) || [];
     const hit = reg.find(x => x.key === key);
     if (hit) return hit;
@@ -1211,6 +1261,91 @@ confidence 必须为 0 到 1 的数字。evidence 只摘录或概述文档中可
     Store.flush();
   },
 
+  /** 删除导入篇目后调用：这套卷若已没有其它导入篇目，清掉查重登记。
+   * 【真实问题】importedPapers 只增不减，用户「删除本篇 → 重新导入同一 PDF」时
+   * 仍会命中文件指纹被永久跳过。这里在最后一份被删掉时把登记一起清掉。*/
+  forgetImportedPaper(p) {
+    if (!p || !Store.d) return;
+    const same = x => x && x.mine && String(x.year) === String(p.year)
+      && String(x.session) === String(p.session)
+      && (p.setNo == null ? x.setNo == null : Number(x.setNo) === Number(p.setNo));
+    const pools = [];
+    try {
+      if (typeof Dict !== 'undefined' && Dict.content) {
+        pools.push(...((Dict.content.listening || {}).passages || []));
+        pools.push(...((Dict.content.reading || {}).passages || []));
+        pools.push(...((Dict.content.writing || {}).tasks || []));
+      }
+    } catch (e) { return; }
+    if (pools.some(same)) return;                 // 这套还有别的篇目：登记要保留
+    const d = Store.d;
+    d.importedPapers = (d.importedPapers || []).filter(x => !(String(x.year) === String(p.year)
+      && String(x.session) === String(p.session)
+      && (p.setNo == null ? x.setNo == null : Number(x.setNo) === Number(p.setNo))));
+    Store.flush();
+  },
+
+  /** 「重新导入并覆盖」：只清掉这套卷的查重登记，**不动旧篇目内容**。
+   * 内容靠 _putImported() 原地替换：旧篇目 id 不变，readLog / 已做标记 / 划线都保留。*/
+  _clearPaperRegistry(meta) {
+    if (!meta) return;
+    const d = Store.d;
+    const setNo = meta.setNo == null ? null : Number(meta.setNo);
+    d.importedPapers = (d.importedPapers || []).filter(x => !(String(x.year) === String(meta.year)
+      && String(x.session) === String(meta.session)
+      && (setNo == null ? x.setNo == null : Number(x.setNo) === setNo)));
+    Store.flush();
+  },
+
+  /** 覆盖重导时找同套同类的旧篇目（用于原地替换、保留 id）：
+   *  · 阅读：同 readingType；traditional 再按 examPart/pickerLabel/title、最后按 no 匹配
+   *  · 写作：同 writingType，优先 examPart/title
+   *  · 听力：优先 examPart/title，否则这套的第一条 */
+  _matchExistingPaperItem(pool, rec, kind) {
+    const norm = value => String(value == null ? '' : value).replace(/\s+/g, ' ').trim().toLowerCase();
+    const samePaper = x => x && x.mine && String(x.year) === String(rec.year)
+      && String(x.session) === String(rec.session)
+      && (rec.setNo == null ? x.setNo == null : Number(x.setNo) === Number(rec.setNo));
+    const candidates = (pool || []).filter(samePaper);
+    if (!candidates.length) return null;
+    if (kind === 'reading') {
+      const type = rec.readingType || 'traditional';
+      const typed = candidates.filter(x => (x.readingType || 'traditional') === type);
+      if (!typed.length) return null;
+      if (type === 'traditional') {
+        const key = norm(rec.examPart || rec.pickerLabel || rec.title);
+        const byTitle = key ? typed.find(x => norm(x.examPart || x.pickerLabel || x.title) === key) : null;
+        if (byTitle) return byTitle;
+        return typed.find(x => Number(x.no) === Number(rec.no)) || null;
+      }
+      return typed[0];
+    }
+    if (kind === 'writing') {
+      const type = norm(rec.writingType || 'essay');
+      const typed = candidates.filter(x => norm(x.writingType || 'essay') === type);
+      const key = norm(rec.examPart || rec.title);
+      return typed.find(x => norm(x.examPart || x.title) === key) || typed[0] || null;
+    }
+    return candidates.find(x => norm(x.examPart || x.title) === norm(rec.examPart || rec.title)) || candidates[0] || null;
+  },
+
+  /** 入库写池：覆盖重导时原地替换旧篇目（保留旧 id）；否则追加。*/
+  _putImported(pool, rec, kind, added) {
+    if (this.overwrite) {
+      const old = this._matchExistingPaperItem(pool, rec, kind);
+      if (old) {
+        rec.id = old.id;
+        if (old.no != null) rec.no = old.no;   // 篇号沿用旧值，选择器顺序不跳号
+        pool[pool.indexOf(old)] = rec;
+        added.push(rec);
+        return true;
+      }
+    }
+    pool.push(rec);
+    added.push(rec);
+    return false;
+  },
+
   open(target, defaults = {}) {
     /* 【2026-10-25 真机走查】导入进度弹窗可以被 × 关掉，但导入仍在后台继续，
      * 用户再点导入会形成两份试卷重叠切分、结果弹窗归属错乱。这里直接挡住并发导入。 */
@@ -1218,8 +1353,9 @@ confidence 必须为 0 到 1 的数字。evidence 只摘录或概述文档中可
       App.toast('上一份试卷还在导入中，请等它完成后再导入下一份', '');
       return;
     }
-    /* 每次打开弹窗都重置“用户手选套别”状态，避免上一次的选择影响这一次。 */
+    /* 每次打开弹窗都重置“用户手选套别/覆盖重导”状态，避免上一次的选择影响这一次。 */
     this.manualSetNo = null;
+    this.overwrite = false;
     if (this.target !== target) {
       this.raw = '';
       this.fileMeta = null;
@@ -1284,6 +1420,10 @@ confidence 必须为 0 到 1 的数字。evidence 只摘录或概述文档中可
           （如 <code>2023年6月六级听力真题.docx</code> 会自动归到 2023 年 6 月）。<br>
           Word 与扫描版 PDF 若读取失败，请改用「复制粘贴」。
         </div>
+        <label class="row" style="gap:7px;margin:0 0 9px;font-size:12.5px;align-items:center;cursor:pointer">
+          <input type="checkbox" id="imOverwrite" ${this.overwrite ? 'checked' : ''}>
+          <span>重新导入并覆盖：删除同一年/场次/套别的旧导入篇目后重新入库（用于修复分段/识别错误）</span>
+        </label>
         <div id="imBatch" style="margin-bottom:10px"></div>
         <textarea class="inp" id="imText" style="min-height:170px"
           placeholder="把真题全文粘贴到这里，例如：
@@ -1321,6 +1461,8 @@ A) ...  B) ...  C) ...  D) ...">${esc(this.raw || '')}</textarea>
       const setSelB = $('#imSet', b);
       if (setSelB) setSelB.onchange = e => { this.manualSetNo = Number(e.target.value) || null; };
       $('#imFile', b).onchange = e => this._readFile(e.target.files[0], $('#imText', b), $('#imStat', b));
+      const ow = $('#imOverwrite', b);
+      if (ow) ow.onchange = e => { this.overwrite = !!e.target.checked; };
 
       // 批量导入整个文件夹
       $('#imDirPick', b).onclick = () => $('#imDir', b).click();
@@ -1359,10 +1501,10 @@ A) ...  B) ...  C) ...  D) ...">${esc(this.raw || '')}</textarea>
           setNo: +$('#imSet', b).value || null,
           fileKey: this.fileMeta && this.fileMeta.fileKey,
         };
-        if (this.fileMeta && this.fileMeta.duplicate) {
+        if (this.fileMeta && this.fileMeta.duplicate && !this.overwrite) {
           const dup = this.fileMeta.duplicate;
           const where = (dup.year ? dup.year + ' 年 ' : '') + (dup.session ? sessionLabel(dup.session) : '') + (dup.setNo ? ' · 第 ' + dup.setNo + ' 套' : '');
-          App.toast('该文件已导入过（' + where + '），已跳过', 'err');
+          App.toast('该文件已导入过（' + where + '），已跳过。要修复导入请勾选「重新导入并覆盖」', 'err');
           return;
         }
         await this._parseAndSave(meta);
@@ -1496,7 +1638,7 @@ A) ...  B) ...  C) ...  D) ...">${esc(this.raw || '')}</textarea>
       const form = stat.closest('.modal-b');
       const type = examTypeKey(m.level);
       const fileKey = await this._fileKey(file);
-      const dup = this._dupLookup(fileKey, { ...m, type });
+      const dup = this._dupLookup(fileKey, { ...m, type }, !!this.overwrite);
       this.fileMeta = { ...m, type, name: file.name, fileKey, duplicate: dup };
       if (m.listeningNote) App.toast('本套未含听力：' + m.listeningNote, 'warn');
       if (form) {
@@ -1515,7 +1657,7 @@ A) ...  B) ...  C) ...  D) ...">${esc(this.raw || '')}</textarea>
         ${(m.year || type || m.setNo) ? `<br>文件名识别：<b>${m.year ? m.year + ' 年' : ''}${m.session ? ' ' + (['06', '12'].includes(m.session) ? Number(m.session) + ' 月' : m.session) : ''}${m.setNo ? ' · 第 ' + m.setNo + ' 套' : ''}${type ? ' · ' + levelLabel(type) : ''}</b>；类型仍待 AI 核验。${m.module ? ' · ' + moduleName(m.module) : ''}` : '<br>未从文件名识别考试类型；将尝试由 AI 根据正文判断。'}
         ${m.setEvidence ? `<br>套别依据：${esc(m.setEvidence)}` : ''}
         ${m.setEvidenceConflicts && m.setEvidenceConflicts.length > 1 ? `<br><span style="color:var(--warn)">⚠ 正文同时出现第 ${m.setEvidenceConflicts.join('、')} 套的套别线索，已按未标注处理，请手动选择</span>` : ''}
-        ${dup ? `<br><span style="color:var(--err)">⚠ 这个文件/这套题已导入过（${dup.year ? dup.year + ' 年 ' : ''}${dup.session ? sessionLabel(dup.session) : ''}${dup.setNo ? ' · 第 ' + dup.setNo + ' 套' : ''}）。继续导入会被忽略。</span>` : ''}
+        ${dup && !this.overwrite ? `<br><span style="color:var(--err)">⚠ 这个文件/这套题已导入过（${dup.year ? dup.year + ' 年 ' : ''}${dup.session ? sessionLabel(dup.session) : ''}${dup.setNo ? ' · 第 ' + dup.setNo + ' 套' : ''}）。继续导入会被忽略；勾选上方「重新导入并覆盖」可强制重导。</span>` : ''}
         ${text.length > 20000 ? '<br><span style="color:var(--warn)">内容较长，AI 切分可能需要 1-2 分钟。</span>' : ''}`;
     } catch (e) {
       stat.innerHTML = `<span style="color:var(--err)">读取失败：${esc(e.message)}<br>请改用「复制粘贴」方式。</span>`;
@@ -1934,7 +2076,7 @@ A) ...  B) ...  C) ...  D) ...">${esc(this.raw || '')}</textarea>
         ],
         writing: [
           { writingType: 'essay', prompt: '完整英文作文要求原文（逐句保留）', title: '英文作文题目', cn: '原题中文要求（若有）', genre: '话题',
-            examPaper: 'english-1', examPart: '小作文或大作文', pickerLabel: '小作文或大作文', limit: 40, expectScore: 30, minWords: 150, outline: ['段落思路'] },
+            examPaper: 'english-1', examPart: '小作文或大作文', pickerLabel: '小作文或大作文', limit: 40, expectScore: 20, minWords: 150, outline: ['段落思路'] },
           { writingType: 'translation', prompt: '原卷翻译要求及完整英文原文', translationText: '完整英文翻译材料（保留句子编号）',
             title: '考研英语翻译', examPaper: 'english-2', examPart: '翻译', pickerLabel: '翻译', cn: '', limit: 30, expectScore: null, minWords: 0, outline: [] },
         ],
@@ -2158,7 +2300,7 @@ A) ...  B) ...  C) ...  D) ...">${esc(this.raw || '')}</textarea>
         const cn = lines.find(l => /[一-龥]/.test(l) && !/^20\d{2}\s*年/.test(l)) || '';
         out.passages.push({
           prompt, title: prompt, cn,
-          genre: '导入', limit: 40, expectScore: 30, minWords: 150,
+          genre: '导入', limit: 40, expectScore: 15, minWords: 150,
           outline: ['论点一 + 例证', '论点二 + 例证', '让步与回应', '结论'],
         });
       }
@@ -2298,6 +2440,8 @@ A) ...  B) ...  C) ...  D) ...">${esc(this.raw || '')}</textarea>
     let qCount = 0;
     let noScript = 0;              // 只有题干、没有听力原文的篇数（导入结束时提示）
     const added = [];              // 本次真正新增的条目，供 _persist 精确落盘
+    /* 用户勾选「重新导入并覆盖」时：旧篇目先删，再按新解析入库（见 _removePaperForOverwrite）*/
+    if (this.overwrite) this._clearPaperRegistry(meta);
     const startNo = this._nextNo(meta, targetOverride);
     /* 原文全文：入库前补全（Section A/B 通用字段、漏题漏选项、写作空格）要用 */
     const rawText = String(this.raw || '');
@@ -2327,8 +2471,7 @@ A) ...  B) ...  C) ...  D) ...">${esc(this.raw || '')}</textarea>
         };
         if (!rec.script.length) noScript++;
         qCount += (rec.qs || []).length;
-        Dict.content.listening.passages.push(rec);
-        added.push(rec);
+        this._putImported(Dict.content.listening.passages, rec, 'listening', added);
       } else if (targetOverride === 'reading') {
         const typeHint = `${p.readingType || ''} ${p.genre || ''}`;
         const rawType = String(p.readingType || '').toLowerCase();
@@ -2371,8 +2514,7 @@ A) ...  B) ...  C) ...  D) ...">${esc(this.raw || '')}</textarea>
           mine: true, importedAt: new Date().toISOString(),
         };
         qCount += questions.length;
-        Dict.content.reading.passages.push(recR);
-        added.push(recR);
+        this._putImported(Dict.content.reading.passages, recR, 'reading', added);
       } else {
         const writingType = isImportedTranslation(p) ? 'translation' : 'essay';
         /* AI 的写作 prompt 经常被截断（真实样本停在 "…given in quotes at the"）且缺空格/断词；
@@ -2410,8 +2552,7 @@ A) ...  B) ...  C) ...  D) ...">${esc(this.raw || '')}</textarea>
           mine: true, importedAt: new Date().toISOString(),
         };
         qCount += 1;
-        Dict.content.writing.tasks.push(recW);
-        added.push(recW);
+        this._putImported(Dict.content.writing.tasks, recW, 'writing', added);
       }
       this.markMine(targetOverride, id);
       n++;
@@ -2488,12 +2629,26 @@ A) ...  B) ...  C) ...  D) ...">${esc(this.raw || '')}</textarea>
       }
     } catch (e) { /* 文件不存在则从空开始 */ }
 
-    // 按 id 去重后再追加，避免重复点"导入"造成堆积
-    const exist = new Set(base[listKey].map(x => x.id));
-    const fresh = items.filter(x => x && x.id && !exist.has(x.id));
-    if (!fresh.length) { App.toast('这些内容已经保存过了', ''); return; }
-
-    base[listKey] = base[listKey].concat(fresh);
+    /* 按 id 合并：新 id 追加；同 id 原地替换。
+       覆盖重导会沿用旧 id（_putImported），必须把新内容写回磁盘，
+       否则重启后读回来的还是旧分段/旧答案。*/
+    const indexById = new Map();
+    base[listKey].forEach((x, i) => { if (x && x.id) indexById.set(x.id, i); });
+    const fresh = [];
+    let replaced = 0;
+    items.forEach(x => {
+      if (!x || !x.id) return;
+      const at = indexById.get(x.id);
+      if (at == null) {
+        indexById.set(x.id, base[listKey].length);
+        base[listKey].push(x);
+        fresh.push(x);
+      } else {
+        base[listKey][at] = x;
+        replaced++;
+      }
+    });
+    if (!fresh.length && !replaced) { App.toast('这些内容已经保存过了', ''); return; }
     //计数类字段由 dict.js 加载时重算，这里不要带过去
     ['cet4Count', 'kaoyanCount', 'cet4SectionABCount'].forEach(k => delete base[k]);
 
@@ -2513,7 +2668,7 @@ A) ...  B) ...  C) ...  D) ...">${esc(this.raw || '')}</textarea>
         delete Store.d.contentBackup[target];
         Store.flush();
       }
-      App.toast('已保存 ' + fresh.length + ' 篇到 ' + target + '.json，下次打开仍在', '');
+      App.toast('已保存 ' + (fresh.length + replaced) + ' 篇到 ' + target + '.json，下次打开仍在', '');
     } catch (e) {
       /* 静态托管（没有 /__save-content）或旧版服务器：存到本机并随备份走。
        * 必须"累加"而不是覆盖，否则第二次导入会让第一次导入的篇目丢失。*/
@@ -2525,7 +2680,13 @@ A) ...  B) ...  C) ...  D) ...">${esc(this.raw || '')}</textarea>
           : (prev && Array.isArray(prev[listKey]) ? prev[listKey] : []);
         const seen = new Set(prevArr.map(x => x && x.id).filter(Boolean));
         const merged = prevArr.slice();
-        fresh.forEach(x => { if (x && x.id && !seen.has(x.id)) { seen.add(x.id); merged.push(x); } });
+        /* 同 id 原地替换（覆盖重导），新 id 追加 */
+        items.forEach(x => {
+          if (!x || !x.id) return;
+          const at = merged.findIndex(y => y && y.id === x.id);
+          if (at >= 0) merged[at] = x;
+          else if (!seen.has(x.id)) { seen.add(x.id); merged.push(x); }
+        });
         Store.d.contentBackup[target] = merged;
         Store.flush();
         App.toast('已保存在本机（会随「导出备份」一起带走），当前共 ' + merged.length + ' 篇导入内容', '');
@@ -2804,7 +2965,8 @@ A) ...  B) ...  C) ...  D) ...">${esc(this.raw || '')}</textarea>
   /* ---------- 「我导入的」标记持久化 ---------- */
   markMine(target, id) {
     Store.d.mineIds = Store.d.mineIds || {};
-    (Store.d.mineIds[target] = Store.d.mineIds[target] || []).push(id);
+    const list = Store.d.mineIds[target] = Store.d.mineIds[target] || [];
+    if (!list.includes(id)) list.push(id);
     Store.flush();
   },
   unmarkMine(target, id) {
@@ -2921,6 +3083,33 @@ async function readPdfTextNative(bytes) {
   return { text, pages: [{ no: 1, start: 0, end: text.length, total: r.pages || 0 }] };
 }
 
+/* PDF 页间续句判断：分页把一句话切断时，页间不能补空行（否则 AI 会把同一段拆成两段）。
+ * 真实样本：2023-03 六级第 1 套 H 段第 4 页以 "...but" 结尾，第 5 页页脚之后才接
+ * "also deprives..."。判据保守：上一页最后一行没有句末标点，且下一页第一行（跳过
+ * 页眉页脚）是小写续写。结构行（Passage/Questions/A)/36.）不拼。*/
+function stripPdfFurnitureForCheck(value) {
+  try {
+    if (typeof TextRepair !== 'undefined' && TextRepair
+      && typeof TextRepair.stripPageFurniture === 'function') return TextRepair.stripPageFurniture(value);
+  } catch (e) { /* 清洗失败时按原文判断 */ }
+  return String(value || '');
+}
+function lastTextLine(value) {
+  const list = String(value || '').split('\n').map(line => line.trim()).filter(Boolean);
+  return list.length ? list[list.length - 1] : '';
+}
+function firstTextLine(value) {
+  return stripPdfFurnitureForCheck(value).split('\n').map(line => line.trim()).filter(Boolean)[0] || '';
+}
+function pdfPageContinues(prevText, nextText) {
+  const tail = lastTextLine(prevText);
+  const head = firstTextLine(nextText);
+  if (!tail || !head) return false;
+  if (/[.!?。！？]["'”’)]?$/.test(tail)) return false;
+  if (/^(?:[A-Z]\s*[).、]|\d{1,3}\s*[.、)]|(?:Questions?|Passage|Text|Section|Part|Directions?)\b)/i.test(head)) return false;
+  return /^[a-z(,;:—–-]/.test(head);
+}
+
 async function readPdfText(buf, depth = 0) {
   const base = new URL('./', location.href);
   /* PDF.js 会把 data 的 ArrayBuffer 转移给 Worker（detached）；
@@ -3007,18 +3196,23 @@ async function readPdfText(buf, depth = 0) {
     /* 【页码保留】以前这里直接 join 成整串文本，页码信息就丢了：
      * 结构切批/校验需要知道"这一批来自第几页到第几页"。这里同时返回 pages 区间，
      * 文本仍是这些页按顺序用空行连接，offset 与 text 严格对应。*/
+    /* 页间续句判断见模块级 pdfPageContinues()（测试可直接调用）*/
+    const chunks = [];
+    pages.forEach((t, idx) => {
+      if (!t || !t.trim()) return;
+      chunks.push({ no: idx + 1, text: t.trim() });
+    });
     const parts = [];
     const pageInfo = [];
     let offset = 0;
-    pages.forEach((t, idx) => {
-      if (!t || !t.trim()) return;
-      const text = t.trim();
-      if (parts.length) offset += 2;                // 页间用 '\n\n' 连接
-      pageInfo.push({ no: idx + 1, start: offset, end: offset + text.length });
-      parts.push(text);
-      offset += text.length;
+    chunks.forEach((chunk, idx) => {
+      const sep = idx === 0 ? '' : (pdfPageContinues(chunks[idx - 1].text, chunk.text) ? '\n' : '\n\n');
+      offset += sep.length;
+      pageInfo.push({ no: chunk.no, start: offset, end: offset + chunk.text.length });
+      parts.push(sep + chunk.text);
+      offset += chunk.text.length;
     });
-    return { text: parts.join('\n\n'), pages: pageInfo };
+    return { text: parts.join(''), pages: pageInfo };
   } catch (e) {
     if (e && e.name === 'PasswordException') {
       throw new Error('PDF 有密码保护，请先解除密码后再导入');
@@ -3054,6 +3248,8 @@ async function readPdfText(buf, depth = 0) {
 
 window.Importer = Importer;
 window.cleanImportedParagraphs = cleanImportedParagraphs;
+window.pdfPageContinues = pdfPageContinues;
+window.parseParagraphMatchingSource = parseParagraphMatchingSource;
 window.repairGluedText = repairGluedText;
 
 

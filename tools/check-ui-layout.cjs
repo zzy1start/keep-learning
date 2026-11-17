@@ -31,5 +31,21 @@ check('写作页：≤1180px 也改为单列，避免左窄栏 + 右侧空白', 
   assert.ok(block.includes('.wr-layout{grid-template-columns:minmax(0,1fr)}'), '写作在窄屏应单列');
 });
 
+check('阅读题目：落单题居中只在两列（>1180px）生效，单列/侧栏题卡保持通栏', () => {
+  const css = read('css/modules.css');
+  // 旧实现把“最后一道落单题居中”绑在 min-width:700px 上，但 .two-col 在 ≤1180px
+  // 已折成单列，平板 1024px 下就会出现最后一题比前面窄一截、左边缩进不一致。
+  assert.ok(!/@media \(min-width:700px\)\{[\s\S]{0,300}\.two-col > \.q-item:last-child:nth-child\(odd\)/.test(css),
+    '落单题居中不应绑在 700px（会漏进单列布局）');
+  const anchor = '.two-col > .q-item:last-child:nth-child(odd)';
+  const idx = css.indexOf(anchor);
+  assert.ok(idx > -1, '缺少两列落单题居中规则');
+  const head = css.slice(Math.max(0, idx - 400), idx);
+  assert.ok(head.includes('@media (min-width:1181px)'), '落单题居中应位于 min-width:1181px 媒体查询内');
+  assert.ok(/\.read-question-side #qWrap > \.q-item:last-child:nth-child\(odd\)\{[\s\S]{0,120}max-width:none/.test(css),
+    '侧栏单列题卡应取消 max-width（避免最后一题缩窄）');
+  assert.ok(/\.read-question-side #qWrap \.qt\{min-height:0\}/.test(css), '侧栏单列题卡不应强制题干最小高度');
+});
+
 if (failed) process.exitCode = 1;
 else console.log('全部 ' + passed + ' 项排版检查通过');

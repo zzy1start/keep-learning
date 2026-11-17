@@ -22,7 +22,8 @@
  * 只做"由提取错误导致的形态修复"，不做改写：
  *   - 不替换任何汉字（例如把"礼也"猜成"礼仪"——那是模型才该做的事，见 ai.js 的核验提示）
  *   - 不合并英文连字符断行（well-\nknown 可能是真连字符）
- *   - 动过的只有空白与换行；每个规则的触发条件都写明了，避免误伤正常文本
+ *   - 除"页眉/页脚"（第 ④ 节 stripPageFurniture，只删有强证据的页码/卷头）外，
+ *     动过的只有空白与换行；每个规则的触发条件都写明了，避免误伤正常文本
  */
 const TextRepair = (() => {
   const CJK = '\\u3400-\\u4dbf\\u4e00-\\u9fff\\uf900-\\ufaff';
@@ -173,11 +174,110 @@ const TextRepair = (() => {
     return out.join('\n');
   }
 
+  /* ---------- ④ 页眉/页脚（页码、真题卷头） ---------- */
+  /**
+   * 只删"能证明是版面页眉/页脚"的片段，其余一律不动：
+   *   强证据（单独出现也删）：
+   *     ① "共 N 页"，可带 "第 N 页" 前缀 —— "第 5 页，共 8 页" / "第5页，共8页"
+   *     ② "Page X of Y" / "Page X/Y"
+   *     ③ 真题卷头 —— "英语四/六级…真题/试题"，可带年月、"（第 N 套）"
+   *   弱证据（只有紧挨着强证据时才一起删）："第 N 套"、年月
+   *   独立成行的页码（"第 5 页"、"- 5 -"、"Page 5"）整行删掉：整行都是页码，不可能是正文。
+   *
+   * 【为什么这么保守】页脚常被 PDF 抽成一行粘进正文（"…but 2023 年 3 月英语六级
+   * 真题第 1 套第 5 页，共 8 页 also deprives…"），但也可能只是正文里的普通数字。
+   * 所以正文里的 "第 5 页"（没有"共 N 页"）、"第 1 套题"、"2023 年"、"英语六级考试"
+   * 都不删——没有强证据就不猜。删除处补一个空格，英文单词不会被粘在一起。
+   */
+  const CN_NUM = '[一二三四五六七八九十百\\d]';
+  const PAGE_NO = '第\\s*' + CN_NUM + '{1,3}\\s*页';
+  const PAGE_TOTAL = '共\\s*' + CN_NUM + '{1,3}\\s*页';
+  const SET_NO = '第\\s*' + CN_NUM + '{1,3}\\s*套(?!\\s*题)';
+  const PAPER_TITLE = '(?:20\\d{2}\\s*年\\s*)?(?:\\d{1,2}\\s*月\\s*)?(?:全国\\s*)?(?:大学\\s*)?英语\\s*[四六]\\s*级\\s*(?:考试\\s*)?(?:真题|试题)'
+    + '(?:\\s*[（(]\\s*' + SET_NO + '\\s*[)）])?(?:\\s*' + SET_NO + ')?';
+  const PAGE_OF_EN = '\\bPages?\\s*\\d{1,3}\\s*(?:of|\\/)\\s*\\d{1,3}\\b';
+  const YEAR_MONTH = '20\\d{2}\\s*年(?:\\s*\\d{1,2}\\s*月)?';
+  /* 页脚里各片段之间的分隔：空白/中文逗号/间隔号/冒号/斜杠/破折号（PDF 行序错乱时什么都有） */
+  const FURNITURE_SEP = '[ \\t，,、·:：\\/\\-–—]*';
+  const STRONG_SRC = '(?:(?:' + PAGE_NO + '\\s*[，,]?\\s*)?' + PAGE_TOTAL
+    + '|' + PAPER_TITLE + '|' + PAGE_OF_EN + ')';
+  const WEAK_SRC = '(?:' + SET_NO + '|' + YEAR_MONTH + ')';
+  const TOKEN_SRC = '(?:' + STRONG_SRC + '|' + WEAK_SRC + ')';
+  const FURNITURE_RE = new RegExp(TOKEN_SRC + '(?:' + FURNITURE_SEP + TOKEN_SRC + ')*', 'g');
+  const STRONG_RE = new RegExp(STRONG_SRC);
+  /* 整行只有页码的形态 */
+  const LINE_PAGE_CN = new RegExp('^[ \\t]*' + PAGE_NO + '[ \\t]*$');
+  const LINE_DASH_PAGE = /^[ \t]*[-–—·]\s*\d{1,3}\s*[-–—·][ \t]*$/;
+  const LINE_PAGE_EN = new RegExp('^[ \\t]*Pages?\\s*\\d{1,3}\\s*(?:(?:of|\\/)\\s*\\d{1,3})?[ \\t]*$');
+
+  /**
+   * 删除混进正文的页眉/页脚；逐行处理，被删空的页脚行整行去掉。
+   * 删除处补一个空格，再复用 tidySpaces 收尾（英文单词之间保留一个空格，不会被粘住）。
+   */
+  function stripPageFurniture(text) {
+    if (text == null) return '';
+    const source = String(text).replace(/\r\n?/g, '\n');
+    const out = [];
+    let squeezeBlank = false;   // 删掉整行页脚后，两侧的空行只保留一个
+    for (const line of source.split('\n')) {
+      if (!line.trim()) {
+        if (squeezeBlank) continue;
+        out.push(line);
+        continue;
+      }
+      let touched = false;
+      let firstAt = -1;
+      let cleaned = line.replace(FURNITURE_RE, (match, offset) => {
+        // 只匹配到"第 N 套 / 年月"这类弱证据时不动：可能是正文（"第 1 套题"）
+        if (!STRONG_RE.test(match)) return match;
+        touched = true;
+        if (firstAt < 0) firstAt = offset;
+        return ' ';
+      });
+      // 整行都是页码（第 5 页 / - 5 - / Page 5）：不可能是正文，直接删行
+      if (LINE_PAGE_CN.test(line) || LINE_DASH_PAGE.test(line) || LINE_PAGE_EN.test(line)) {
+        if (out.length && !out[out.length - 1].trim()) squeezeBlank = true;
+        continue;
+      }
+      if (touched) {
+        cleaned = cleaned.replace(/^[ \t]+/, '');                 // 行首页脚删掉后留下的缩进
+        cleaned = cleaned.replace(/[ \t]+([,.;:!?])[ \t]*$/, '$1'); // 行尾页脚删掉后留下的悬空标点
+      }
+      // 页脚在行首、剩下的还是正文：这是 PDF 分页把一句话切成两行，去掉空行后接回上一行
+      if (touched && firstAt >= 0 && line.slice(0, firstAt).trim() === '' && cleaned.trim()) {
+        let prevIdx = out.length - 1;
+        while (prevIdx >= 0 && !out[prevIdx].trim()) prevIdx--;
+        const prev = prevIdx >= 0 ? out[prevIdx] : null;
+        if (prev != null && prev.trim().length >= 8
+          && !SENTENCE_END.test(prev) && !STRUCTURE_START.test(cleaned)) {
+          const glue = (hasCjk(prev.trim().slice(-1)) && hasCjk(cleaned.trim().charAt(0))) ? '' : ' ';
+          out[prevIdx] = prev.replace(/[ \t]+$/, '') + glue + cleaned.trim();
+          out.length = prevIdx + 1;
+          continue;
+        }
+      }
+      if (touched) {
+        if (!cleaned.trim() || /^[\s。，、；：·,.;:]+$/.test(cleaned)) {  // 整行都是页脚/只剩标点 → 删行
+          if (out.length && !out[out.length - 1].trim()) squeezeBlank = true;
+          continue;
+        }
+      }
+      squeezeBlank = false;
+      out.push(cleaned);
+    }
+    let result = out.join('\n');
+    result = result.replace(/[ \t\u00a0]{2,}/g, ' ');   // 删除点两侧的空白折叠成一个
+    result = result.replace(/[ \t]+$/gm, '');
+    return tidySpaces(result);
+  }
+
   /* ---------- 对外 API ---------- */
-  /** 修复导入文本；只动空白与换行，不替换任何字符 */
+  /** 修复导入文本：只动空白/换行，并按第 ④ 节删除混入的页眉页脚，不替换任何汉字/单词 */
   function fix(text) {
     if (text == null) return '';
     let out = String(text).replace(/\r\n?/g, '\n');
+    // 先删页眉/页脚：否则独立成行的页脚会在 reflowLines 里被拼进正文
+    out = stripPageFurniture(out);
     out = tidySpaces(out);
     out = out.split('\n').map(joinSpacedLatin).join('\n');
     out = tidySpaces(out);
@@ -253,10 +353,10 @@ const TextRepair = (() => {
   }
 
   return {
-    VERSION: '1.1',
+    VERSION: '1.2',
     fix, analyze, sentences, setWordChecker, useLoadedDict,
-    hasCjk,
-    _internal: { joinSpacedLatin, tidySpaces, reflowLines },
+    hasCjk, stripPageFurniture,
+    _internal: { joinSpacedLatin, tidySpaces, reflowLines, stripPageFurniture },
   };
 })();
 

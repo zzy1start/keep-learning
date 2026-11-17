@@ -14,7 +14,10 @@ const ViewStats = {
       recent.push({
         date: k.slice(5),
         words: s.words || 0, listen: s.listen || 0, read: s.read || 0,
-        write: s.write || 0, min: s.min || 0,
+        write: s.write || 0,
+        /* 【2026-11-14】logActivity 写的是 seconds，旧表却读 min → “分钟”列永远是 '-'。
+         * 统一由 Store.dayMinutes 换算（旧存档仍回退 min）。*/
+        min: typeof Store.dayMinutes === 'function' ? Store.dayMinutes(s) : (s.min || 0),
       });
     }
     return recent;

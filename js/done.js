@@ -76,12 +76,22 @@ const DoneBook = {
     return Math.max(0, Math.min(100, Math.round(rec.score / rec.total * 100)));
   },
 
-  /** 下拉选项 / 快捷标签用的短标记：'✓已做 85%'；没做过返回空串。 */
+  /** 页头徽章用的分数标记：'7/10 分'；没有满分信息时退回百分比。
+   *  用户反馈：只写 70% 看不出实际得分，改成原始分/满分。 */
+  scoreText(rec) {
+    if (!rec) return '';
+    if (rec.total > 0) return this._n(rec.score) + '/' + this._n(rec.total) + ' 分';
+    const p = this.percent(rec);
+    return p ? p + '%' : '';
+  },
+
+  /** 下拉选项 / 快捷标签用的短标记：'✓已做 7/10 分'；没做过返回空串。
+   *  与页头徽章统一用原始分，不再只给百分比。 */
   label(kind, item) {
     const rec = this.of(kind, item);
     if (!rec) return '';
-    const p = this.percent(rec);
-    return p ? '✓已做 ' + p + '%' : '✓已做';
+    const score = this.scoreText(rec);
+    return score ? '✓已做 ' + score : '✓已做';
   },
 
   /** 页头 / 详情用的长标记：'上次 8.5 / 10 分（85%）'。 */

@@ -224,7 +224,7 @@ const ViewRead = {
 
     <div class="row" style="margin-bottom:12px">
       <span class="tag tag-warn">${p.source === 'generated-unverified' ? '生成内容（来源未核验）' : p.mine ? '我导入的题目（来源未核验）' : p.source === 'user-provided-pdf' ? '用户提供 PDF（来源未核验）' : '内置仿真题（非真题原文）'}</span>
-      ${DoneBook.of('reading', p) ? `<span class="tag tag-ok" title="${esc(DoneBook.detail('reading', p))}；重新提交会覆盖上次成绩">✓ 本篇已做过 · ${DoneBook.percent(DoneBook.of('reading', p))}%</span>` : ''}
+      ${DoneBook.of('reading', p) ? `<span class="tag tag-ok" title="${esc(DoneBook.detail('reading', p))}；重新提交会覆盖上次成绩">✓ 本篇已做过 · ${esc(DoneBook.scoreText(DoneBook.of('reading', p)))}</span>` : ''}
       ${p.year !== null && p.year !== undefined ? `<span class="tag">${fullLabel(p.year, p.session)} · ${esc(p.pickerLabel || `第 ${p.no} 篇`)}</span>` : ''}
       ${p.genre && p.genre !== p.pickerLabel && p.genre !== p.examPart ? `<span class="tag">${esc(p.genre)}</span>` : ''}
       <span class="sp"></span>
@@ -268,7 +268,7 @@ const ViewRead = {
       </div>
     </div>
 
-    ${isSectionA ? `<div class="read-section-a-bank-wrap">${this._renderWordBank(p, true)}</div>` : ''}
+    ${isSectionA ? `<div class="read-section-a-bank-wrap ${this.mode === 'edit' ? 'is-static' : ''}">${this._renderWordBank(p, true)}${this.mode === 'edit' ? this._wordBankAnalysisHTML(p) : ''}</div>` : ''}
 
     <div class="rd-layout ${layoutClass}">
       <div class="${isSectionB && specialQuiz ? 'read-match-source-side' : ''}">
@@ -325,7 +325,7 @@ const ViewRead = {
             ${this._answerActionsHTML(p)}
           </div>
         </div>
-      </div>` : showAnalysis ? `<div class="an-panel">
+      </div>` : showAnalysis ? `<div class="an-side"><div class="an-panel">
         <div class="card">
           <div class="card-h">划线分析
             <span class="r" style="gap:5px">
@@ -335,7 +335,7 @@ const ViewRead = {
             </span></div>
           <div class="card-b" id="anBox">${this._anPanel()}</div>
         </div>
-      </div>` : ''}
+      </div></div>` : ''}
     </div>
 
     ${this.mode === 'exam' ? `<div class="card" style="margin-top:14px;border-color:var(--warn)">
@@ -413,24 +413,117 @@ const ViewRead = {
 
   async _verifyCurrentReading(force = false) {
     const p = this.cur;
-    if (!p || this._readType(p) !== 'traditional') return;
-    if (!force && p._answerVerification) return;
+    if (!p) return;
+    const type = this._readType(p);
+    /* 用户反馈「答案为什么不自动核验」：旧实现只核验 traditional，选词填空/段落匹配
+       提交后永远显示「待核验」。三种客观题现在都自动核验；cloze（四选一）暂不核验。*/
+    if (type !== 'traditional' && type !== 'section-a' && type !== 'section-b') return;
+    /* 用户反馈「AI 明明可用，解析却一直是待核验」：
+       旧实现只要 p 上有状态就 return。若上次在未配置 AI / 请求失败时把
+       unavailable/failed 写进篇目对象，而导入篇又随 contentBackup 落盘，
+       之后每次提交都会永远跳过核验。现在只缓存成功结果，失败/未配置允许自动重试。*/
+    const cached = p._answerVerification;
+    if (!force && cached && (cached.status === 'verified' || cached.status === 'partial')) return;
     if (this._verifyBusy) return;
+    if (!AI.ready) {
+      /* 没配 AI 也要落状态，否则「AI 重新核验」按钮读 p._answerVerification.status 会报错 */
+      p._answerVerification = { status: 'unavailable', checkedAt: Date.now(), error: '' };
+      return;
+    }
     this._verifyBusy = true;
-    if (AI.ready) App.toast('正在核对答案和原文依据…', '');
+    App.toast(type === 'section-a' ? '正在核对选词答案，并生成语法/语义判断…'
+      : type === 'section-b' ? '正在核对段落匹配答案…' : '正在核对答案和原文依据…', '');
     try {
-      const review = await AI.verifyReading(p, this._questions(p));
-      if (this.cur !== p) return;
-      this._questions(p).forEach(q => { q._aiVerified = false; });
-      for (const item of review.items || []) {
-        const q = p.questions[item.index];
-        if (!q) continue;
-        q.a = +item.answer;
-        q.evidence = item.evidence.trim();
-        q.explain = item.explain.trim();
-        q._aiVerified = true;
+      const questions = this._questions(p);
+      if (type === 'traditional') {
+        /* 传「页面真实渲染的正文」（已清洗页脚/页码），而不是 p 的原始段落：
+           这样 AI 复制的依据句与界面段落同源，定位不会因为页脚差异失败。*/
+        const review = await AI.verifyReading({ paragraphs: this._parasOf(p) }, questions);
+        /* 重试时清掉上一轮的旧解析，避免失败/部分核验后还显示上一轮的「AI 已核验」内容 */
+        questions.forEach(q => { q._aiVerified = false; q._analysis = null; });
+        for (const item of review.items || []) {
+          const q = questions[item.index];
+          if (!q) continue;
+          const letter = String.fromCharCode(65 + (+item.answer));
+          /* 题库已有答案时「不覆盖」，只记录 AI 核对结果（与选词填空/段落匹配同一原则）：
+             AI 也会答错；直接改 q.a 会把用户原本正确的选择判错，还会随 contentBackup 落盘。*/
+          const existing = this._answerLetter(q);
+          if (!existing) q.a = +item.answer;
+          else if (existing !== letter) q._aiAnswer = letter;
+          q.evidence = String(item.evidence || '').trim();
+          q.explain = String(item.explain || '').trim();
+          /* 教辅式解析：定位 / 原文原句 / 精析 / 逐项避错。
+             「定位」按页面真实渲染的段落计算，保证与左侧正文段号一致。*/
+          q._analysis = this._buildAnalysis(p, {
+            source: 'ai', quote: q.evidence, explain: q.explain, wrong: item.wrong,
+          });
+          q._aiVerified = true;
+        }
+        p._answerVerification = { status: review.status, checkedAt: Date.now(), error: review.error || '' };
+      } else if (type === 'section-a') {
+        if (typeof AI.explainCloze !== 'function') throw new Error('当前版本缺少选词填空核验能力');
+        const paragraphs = this._clozeParagraphs(p);
+        const review = await AI.explainCloze({
+          title: p.title,
+          clozeText: paragraphs.join(' '),
+          paragraphs,
+          wordBank: this._wordBank(p),
+          questions: questions.map((q, i) => ({ number: this._questionNumber(q, i), q: q.q || '', a: q.a })),
+        });
+        const bank = this._wordBank(p);
+        let valid = 0;
+        questions.forEach(q => { q._aiVerified = false; });
+        for (const item of review.items || []) {
+          const q = questions[item.index];
+          if (!q) continue;
+          const letter = String(item.answer || '').toUpperCase();
+          if (!bank.some(x => x.letter === letter)) continue;
+          const existing = this._answerValue(q.a);
+          /* 题库已有答案时不覆盖，只标出 AI 与答案键不一致，避免把原卷答案改错 */
+          if (!existing) q.a = letter;
+          else if (existing !== letter) q._aiAnswer = letter;
+          q._clozeExplain = {
+            grammar: String(item.grammar || '').trim(),
+            semantics: String(item.semantics || '').trim(),
+            /* 语境义：与译文/语义判断同一口径，界面显示优先用它（用户反馈：词典第一义与译文不一致）*/
+            meaning: String(item.meaning || '').trim(),
+          };
+          q._aiVerified = true;
+          valid++;
+        }
+        /* 答案可能刚被补全：之前缓存的「本段翻译」是按空位占位翻的，必须作废重译 */
+        this._paraCn = {};
+        if (this._paraOpen) this._paraOpen.clear();
+        const status = valid >= questions.length ? 'verified' : valid ? 'partial' : (review.status || 'failed');
+        p._answerVerification = { status, checkedAt: Date.now(), error: review.error || '' };
+      } else {
+        if (typeof AI.verifyMatching !== 'function') throw new Error('当前版本缺少段落匹配核验能力');
+        const labels = this._matchingLabels(p);
+        const paragraphs = (Array.isArray(p.paragraphs) ? p.paragraphs : []).map((para, i) => ({
+          label: labels[i], text: this._matchingParaText(para),
+        }));
+        const review = await AI.verifyMatching({
+          paragraphs,
+          questions: questions.map((q, i) => ({ number: this._questionNumber(q, i), statement: q.statement || q.q || q.text || '' })),
+        });
+        let valid = 0;
+        questions.forEach(q => { q._aiVerified = false; });
+        for (const item of review.items || []) {
+          const q = questions[item.index];
+          if (!q) continue;
+          const letter = String(item.answer || '').toUpperCase();
+          if (!labels.includes(letter)) continue;
+          const existing = this._answerValue(q.a);
+          if (!existing) q.a = letter;
+          else if (existing !== letter) q._aiAnswer = letter;
+          q.evidence = String(item.evidence || '').trim();
+          q._matchingJudgement = { grammar: String(item.grammar || '').trim(), semantics: String(item.semantics || '').trim() };
+          q._aiVerified = true;
+          valid++;
+        }
+        const status = valid >= questions.length ? 'verified' : valid ? 'partial' : (review.status || 'failed');
+        p._answerVerification = { status, checkedAt: Date.now(), error: review.error || '' };
       }
-      p._answerVerification = { status: review.status, checkedAt: Date.now(), error: review.error || '' };
     } catch (error) {
       p._answerVerification = { status: 'failed', checkedAt: Date.now(), error: String(error && error.message || error) };
     } finally { this._verifyBusy = false; }
@@ -459,11 +552,450 @@ const ViewRead = {
 
   _sourceParagraphs(p) {
     if (Array.isArray(p && p.paragraphs) && p.paragraphs.length) {
-      return p.paragraphs.map(para => typeof para === 'string' ? para : String(para.text || para.content || ''));
+      return p.paragraphs.map(para => this._cleanParaText(typeof para === 'string' ? para : String(para.text || para.content || '')))
+        .filter(text => String(text || '').trim());
     }
     return String(p && (p.clozeText || p.text) || '').replace(/\r\n?/g, '\n')
-      .split(/\n\s*\n/).filter(text => text.trim());
+      .split(/\n\s*\n/).map(text => this._cleanParaText(text)).filter(text => String(text || '').trim());
   },
+
+  /* ---------- 段落文本与特殊题型工具（2026-11 用户反馈修复） ----------
+   * 【为什么必须统一入口】旧实现里正文渲染 section-a/cloze 时用 clozeText 再切一次段落，
+   * 而「本段翻译」和「点句取句」用的是 _sourceParagraphs(p)[pi]。导入篇的 p.paragraphs
+   * 往往只有 1 段（整篇），于是：第 1 段翻译=整篇；第 2 段以后 pi 越界直接 return，
+   * 表现为「本段翻译把全文都翻了 + 下一段点不动」。现在渲染/翻译/取句全部走 _parasOf()，
+   * 段号永远一致。*/
+  _cleanParaText(text) {
+    const raw = String(text == null ? '' : text);
+    try {
+      if (typeof TextRepair !== 'undefined' && TextRepair
+        && typeof TextRepair.stripPageFurniture === 'function') {
+        return TextRepair.stripPageFurniture(raw);
+      }
+    } catch (e) { /* 清洗失败也必须保留正文，不能因为工具异常把整段吞掉 */ }
+    return raw;
+  },
+
+  _clozeParagraphs(p) {
+    const raw = String(p && (p.clozeText || p.text) || '').replace(/\r\n?/g, '\n');
+    if (!raw.trim()) return this._sourceParagraphs(p);
+    return raw.split(/\n\s*\n/).map(text => this._cleanParaText(text))
+      .filter(text => String(text || '').trim());
+  },
+
+  /** 当前篇目「页面上真实渲染」的段落文本数组；翻译/取句/段号都只认它 */
+  _parasOf(p) {
+    if (!p) return [];
+    const type = this._readType(p);
+    if (type === 'section-a') return this._clozeParagraphs(p);
+    if (type === 'cloze') return this._sourceParagraphs(p);
+    if (type === 'section-b') {
+      return (Array.isArray(p.paragraphs) ? p.paragraphs : []).map(para => this._matchingParaText(para));
+    }
+    return this._sourceParagraphs(p);
+  },
+
+  /** 段落匹配正文：label 由左侧字母徽标单独渲染，正文里重复的 "A) " 前缀要剥掉 */
+  _matchingParaText(para) {
+    const text = this._sourceParagraphs({ paragraphs: [para] })[0] || '';
+    return String(text).replace(/^\s*[A-Z]\s*[).、:：]\s*/, '');
+  },
+
+  /** 段落匹配的段落字母。
+   * 【用户反馈「两个 I」】导入时 AI/PDF 文本层会把第 10 段 "J" 读成 "I"，
+   * 旧代码又只认 [A-I]，于是选项里出现两个 I、缺 J，正确答案对不上、判分全错。
+   * 这里按"必须严格递增"修复：重复/回退的字母顺延到前一个字母的下一位。
+   * 这样 A–H, I, I, K… 会被修成 A–O；而真正跳过 I 的卷子（A–H, J, K…）保持不变。*/
+  _matchingLabels(p) {
+    const paras = Array.isArray(p && p.paragraphs) ? p.paragraphs : [];
+    const parsed = paras.map((para, i) => {
+      if (para && typeof para === 'object') {
+        const raw = String(para.label || para.letter || '').trim().toUpperCase();
+        if (/^[A-Z]$/.test(raw)) return raw;
+      }
+      const text = this._sourceParagraphs({ paragraphs: [para] })[0] || '';
+      const m = String(text).match(/^\s*([A-Z])\s*[).、:：]\s*/);
+      return m ? m[1].toUpperCase() : '';
+    });
+    let prev = '';
+    return parsed.map((label, i) => {
+      let next = label || String.fromCharCode(65 + i);
+      if (prev && next <= prev) next = String.fromCharCode(prev.charCodeAt(0) + 1);
+      if (!/^[A-Z]$/.test(next)) next = String.fromCharCode(65 + i);
+      prev = next;
+      return next;
+    });
+  },
+
+  /** 词库/答案用的简短释义（本地词典；查不到返回空串，由调用方降级提示） */
+  _wordMeaning(word, contextText) {
+    const info = this._wordInfo(word);
+    const parts = (info.parts || []).filter(x => x.meaning);
+    if (!parts.length) return info.meaning || '';
+    /* 用户反馈（图1）：本段正确选项显示的是词典第一义（scenario → 方案/剧情概要），
+       和本段译文里的「更可能的情形」不一致。有 AI 语境义时优先用 AI（_paraAnswersHTML 里），
+       没有时按本段译文挑最贴近的义项，仍挑不到才用第一义。*/
+    const ctx = String(contextText || '').replace(/\s+/g, '');
+    let best = parts[0], bestScore = 0;
+    if (ctx) {
+      for (const part of parts) {
+        let score = 0;
+        for (const seg of String(part.meaning).split(/[，,；;、]/)) {
+          const text = seg.replace(/[（）()\s]/g, '');
+          for (let i = 0; i + 1 < text.length; i++) {
+            const bigram = text.slice(i, i + 2);
+            if (/^[\u4e00-\u9fff]{2}$/.test(bigram) && ctx.indexOf(bigram) >= 0) score++;
+          }
+        }
+        if (score > bestScore) { bestScore = score; best = part; }
+      }
+    }
+    const meaning = best.meaning;
+    return meaning.length > 46 ? meaning.slice(0, 46) + '…' : meaning;
+  },
+
+  /** 本段翻译的英文源文本：选词填空/完形填空必须**填入正确选项**再翻译，
+   * 否则译文中每个空都是空白，用户看不到该空的正确含义（用户明确要求）。*/
+  _clozeTranslateSource(p, para) {
+    const type = this._readType(p);
+    const questions = this._questions(p);
+    const bank = this._wordBank(p);
+    const text = String(para || '');
+    if (type === 'section-a') {
+      return text.replace(/_{2,}\s*(\d{1,3})\s*_{2,}|\[(\d{1,3})\]|\{\{(\d{1,3})\}\}/g,
+        (full, a, b, c) => {
+          const number = a || b || c;
+          const qi = questions.findIndex((q, i) => this._questionNumber(q, i) === number);
+          const letter = qi >= 0 ? this._answerValue(questions[qi].a) : '';
+          const item = bank.find(x => x.letter === letter);
+          return item ? item.word : '（第 ' + number + ' 空）';
+        });
+    }
+    if (type === 'cloze') {
+      return text.replace(/\((\d{1,3})\)\s*_{2,}|_{2,}\s*(\d{1,3})\s*_{2,}|\[(\d{1,3})\]|\{\{(\d{1,3})\}\}/g,
+        (full, a, b, c, d) => {
+          const number = a || b || c || d;
+          const qi = questions.findIndex((q, i) => this._questionNumber(q, i) === number);
+          if (qi < 0) return full;
+          const q = questions[qi];
+          const opt = (q.opts || [])[this._clozeAnswerIndex(q)];
+          return opt ? String(opt) : '（第 ' + number + ' 空）';
+        });
+    }
+    return text;
+  },
+
+  /** 本段正确选项 + 中文释义（挂在「本段翻译」展开区里，和译文一起看） */
+  _paraAnswersHTML(p, para, pi) {
+    const type = this._readType(p);
+    if (type !== 'section-a' && type !== 'cloze') return '';
+    const questions = this._questions(p);
+    const nums = new Set();
+    const re = type === 'section-a'
+      ? /_{2,}\s*(\d{1,3})\s*_{2,}|\[(\d{1,3})\]|\{\{(\d{1,3})\}\}/g
+      : /\((\d{1,3})\)\s*_{2,}|_{2,}\s*(\d{1,3})\s*_{2,}|\[(\d{1,3})\]|\{\{(\d{1,3})\}\}/g;
+    let m;
+    while ((m = re.exec(String(para || '')))) nums.add(m[1] || m[2] || m[3] || m[4]);
+    const rows = [];
+    questions.forEach((q, qi) => {
+      const number = this._questionNumber(q, qi);
+      if (!nums.has(number)) return;
+      if (type === 'section-a') {
+        const letter = this._answerValue(q.a);
+        const item = this._wordBank(p).find(x => x.letter === letter);
+        if (!item) { rows.push('<b>' + esc(number) + '</b> 待核验'); return; }
+        /* 语境义优先（与译文一致），其次按本段已展开的译文挑义项，最后才用词典第一义 */
+        const cn = (this._paraCn || {})[p.id + '_' + pi] || '';
+        const detail = q._clozeExplain || {};
+        const meaning = detail.meaning || this._wordMeaning(item.word, cn);
+        rows.push('<b>' + esc(number) + '</b> ' + esc(letter) + ') ' + esc(item.word)
+          + (meaning ? '<i>' + esc(meaning) + '</i>' : ''));
+      } else {
+        const idx = this._clozeAnswerIndex(q);
+        const opt = (q.opts || [])[idx];
+        rows.push('<b>' + esc(number) + '</b> ' + (opt
+          ? esc('ABCD'[idx] + ') ' + opt) : '待核验'));
+      }
+    });
+    if (!rows.length) return '';
+    return '<div class="para-tr-answers"><span class="t">本段正确选项</span>'
+      + rows.map(row => '<span class="ans">' + row + '</span>').join('') + '</div>';
+  },
+
+  /** 修改模式：词库按「词性分类 + 释义」展开（用户要求类似教辅的【词性分析】）。
+   * 数据优先本地词典（含词形还原）；确实查不到的词单独归到「其他」并提示可点词查。*/
+  _wordBankAnalysisHTML(p) {
+    const bank = this._wordBank(p);
+    if (!bank.length) return '';
+    /* 正确选项的语境义（AI 核验后）：同一个词在词库里也标出来，
+       避免「词库释义」和「本段译文」对不上（用户反馈：scenario 词典义 vs 译文「情形」）。*/
+    const ctxMeaning = new Map();
+    this._questions(p).forEach(q => {
+      const letter = this._answerValue(q.a);
+      const item = bank.find(x => x.letter === letter);
+      const meaning = q && q._clozeExplain && String(q._clozeExplain.meaning || '').trim();
+      if (item && meaning) ctxMeaning.set(item.word, meaning);
+    });
+    const ctxShown = new Set();
+    const ORDER = ['名词', '动词', '形容词', '副词', '介词', '连词', '代词', '数词', '冠词', '感叹词', '限定词', '助动词', '缩写', '其他'];
+    const groups = new Map();
+    const push = (label, item, meaning) => {
+      const key = label || '其他';
+      if (!groups.has(key)) groups.set(key, []);
+      groups.get(key).push({ letter: item.letter, word: item.word, meaning });
+    };
+    bank.forEach(item => {
+      const info = this._wordInfo(item.word);
+      const parts = (info.parts || []).filter(x => x.meaning);
+      const seen = new Set();
+      if (parts.length) {
+        parts.forEach(part => {
+          const label = part.label || '其他';
+          const key = label + '|' + part.meaning;
+          if (seen.has(key)) return;
+          seen.add(key);
+          push(label, item, part.meaning);
+        });
+      } else {
+        push('其他', item, info.meaning || '本地词典未收录');
+      }
+    });
+    const keys = [...groups.keys()].sort((a, b) => {
+      const ia = ORDER.indexOf(a), ib = ORDER.indexOf(b);
+      return (ia < 0 ? 99 : ia) - (ib < 0 ? 99 : ib);
+    });
+    return '<details class="read-bank-analysis" open><summary>词性与释义'
+      + '<small>按词性分类，先看词性再看意思；点单词可查词/AI 解析</small></summary>'
+      + keys.map(key => '<div class="rba-row"><b>' + esc(key) + '</b><div>'
+        + groups.get(key).map(x => {
+          const ctx = ctxMeaning.get(x.word);
+          const showCtx = ctx && !ctxShown.has(x.word);
+          if (showCtx) ctxShown.add(x.word);
+          return '<span class="rba-item"><i>' + esc(x.letter) + ')</i> '
+            + this._wording(x.word) + '<em>' + esc(x.meaning) + '</em>'
+            + (showCtx ? '<em class="rba-ctx">语境义：' + esc(ctx) + '</em>' : '')
+            + '</span>';
+        }).join('')
+        + '</div></div>').join('')
+      + '</details>';
+  },
+
+  /** 段落匹配每题的「语法判断 / 语义判断」（答案核验后由 AI 填充） */
+  _matchingExplainHTML(q) {
+    const j = (q && q._matchingJudgement) || {};
+    const parts = [];
+    if (j.grammar) parts.push('<div class="sa-judge"><b>语法判断</b>' + esc(j.grammar) + '</div>');
+    if (j.semantics) parts.push('<div class="sa-judge"><b>语义判断</b>' + esc(j.semantics) + '</div>');
+    if (!parts.length && q && q.explain) parts.push('<div class="sa-judge"><b>解析</b>' + esc(q.explain) + '</div>');
+    if (!parts.length) parts.push('<div class="sa-judge sa-pending">'
+      + (AI.ready ? 'AI 解析未返回，可点「AI 重新核验」重试。' : '未启用 AI，暂无语法/语义判断。') + '</div>');
+    return '<div class="tipbox rd-q-explain">' + parts.join('') + '</div>';
+  },
+
+  /* ---------- 传统阅读：教辅式解析【定位】【精析】【避错】（2026-11-12 用户反馈） ----------
+   * 用户反馈：提交后每题只有「解析 · 待核验 / 原文依据：」两行空内容，
+   * 要求像官方《答案详解》那样给出定位、精析和逐项避错。
+   * 原则：分析可以缺，但绝不把编造的句子当「原文依据」——
+   * 依据句必须能在本页真实渲染的正文里定位；定位失败时只显示精析，不硬贴原文。*/
+
+  /* 句级切分：英文句末标点；Dr./Mr./etc. 这类缩写不切（否则定位句会断在 Dr. 后面）*/
+  _sentences(text) {
+    const norm = String(text == null ? '' : text).replace(/\s+/g, ' ').trim();
+    if (!norm) return [];
+    const raw = norm.match(/[^.!?]+[.!?]+[\])'"”’]*(?=\s|$)|[^.!?]+$/g) || [norm];
+    const ABBR = /(?:^|\s)(?:Mr|Mrs|Ms|Dr|Prof|St|vs|etc|e\.g|i\.e|U\.S|No)\.$/i;
+    const out = [];
+    for (const piece of raw) {
+      const trimmed = String(piece || '').trim();
+      if (!trimmed) continue;
+      if (out.length && ABBR.test(out[out.length - 1])) out[out.length - 1] += ' ' + trimmed;
+      else out.push(trimmed);
+    }
+    return out;
+  },
+
+  /* 按词重合度找最像的一句；至少命中 6 个词且覆盖 60% 才算定位成功 */
+  _bestEvidenceSentence(paragraphs, fragment) {
+    const words = w => (String(w).toLowerCase().match(/[a-z][a-z'-]{2,}/g) || []);
+    const fragSet = new Set(words(fragment));
+    if (fragSet.size < 3) return null;
+    let best = null, bestScore = 0, bestHits = 0;
+    (paragraphs || []).forEach((para, pi) => {
+      const text = String(para == null ? '' : para).replace(/\s+/g, ' ').trim();
+      this._sentences(text).forEach((sentence, si) => {
+        const set = new Set(words(sentence));
+        let hits = 0;
+        fragSet.forEach(w => { if (set.has(w)) hits++; });
+        const score = hits / fragSet.size;
+        if (score > bestScore || (score === bestScore && hits > bestHits)) {
+          best = { pi, si, text: sentence }; bestScore = score; bestHits = hits;
+        }
+      });
+    });
+    return best && bestHits >= Math.min(6, Math.ceil(fragSet.size * 0.6)) && bestScore >= 0.6 ? best : null;
+  },
+
+  /* 把「原文依据」定位到当前页面真实渲染的段/句。
+   * 段落数组只走 _parasOf(p)（与正文同一份），所以「第 N 段第 M 句」一定对得上左侧正文。*/
+  _locateEvidence(p, quote) {
+    const norm = t => String(t == null ? '' : t)
+      .replace(/[\u2018\u2019\u201c\u201d]/g, "'").replace(/\s+/g, ' ').trim();
+    const need = norm(quote).replace(/^["']+|["']+$/g, '');
+    if (!need) return { location: '', quote: '' };
+    const paragraphs = p ? this._parasOf(p) : [];
+    for (let pi = 0; pi < paragraphs.length; pi++) {
+      const text = norm(paragraphs[pi]);
+      if (text.indexOf(need) < 0) continue;
+      const sentences = this._sentences(text);
+      const si = sentences.findIndex(s => s.indexOf(need) >= 0);
+      return {
+        location: '第' + (pi + 1) + '段' + (si >= 0 ? '第' + (si + 1) + '句' : ''),
+        quote: si >= 0 ? sentences[si] : '',
+      };
+    }
+    const best = this._bestEvidenceSentence(paragraphs, need);
+    return best ? { location: '第' + (best.pi + 1) + '段第' + (best.si + 1) + '句', quote: best.text }
+      : { location: '', quote: '' };
+  },
+
+  /* 生成一题的结构化解析对象（AI 核验与导入解析共用）*/
+  _buildAnalysis(p, raw) {
+    const data = raw || {};
+    const rawQuote = String(data.quote == null ? '' : data.quote).trim();
+    const loc = this._locateEvidence(p, rawQuote);
+    const wrong = data.wrong && typeof data.wrong === 'object' && !Array.isArray(data.wrong) ? data.wrong : {};
+    return {
+      source: data.source === 'import' ? 'import' : 'ai',
+      explain: String(data.explain == null ? '' : data.explain).trim(),
+      wrong,
+      quote: loc.quote || '',
+      rawQuote,
+      location: loc.location || '',
+    };
+  },
+
+  /* 取某题的解析：优先本轮 AI 核验结果；其次是题库/导入数据自带的 explain + evidence */
+  _analysisOf(q) {
+    if (!q) return null;
+    const hasWrong = q._analysis && q._analysis.wrong && Object.keys(q._analysis.wrong).length > 0;
+    if (q._analysis && (q._analysis.explain || q._analysis.quote || hasWrong)) return q._analysis;
+    if (q.explain || q.evidence) {
+      return this._buildAnalysis(this.cur, { source: 'import', quote: q.evidence, explain: q.explain });
+    }
+    return null;
+  },
+
+  /* 传统阅读解析卡：解析 · 定位 / 原文 / 精析 / 避错。
+     旧实现无条件输出「解析 · 待核验　原文依据：」，没有内容时就是两个空标签，
+     用户以为功能坏了——现在没有解析时改为说明原因（未启用 AI / 核验失败）。*/
+  _readingAnalysisHTML(q, index) {
+    const letterOf = value => {
+      if (value == null || value === '') return '';
+      if (typeof value === 'number') return 'ABCD'[value] || '';
+      const text = String(value).trim().toUpperCase();
+      if (/^[A-D]$/.test(text)) return text;
+      if (/^[0-3]$/.test(text)) return 'ABCD'[+text];
+      return text;
+    };
+    const correct = letterOf(q && q.a);
+    const picked = letterOf(this.answers[index]);
+    const state = this.submitted && correct ? (picked === correct ? ' is-right' : ' is-wrong') : '';
+    const a = this._analysisOf(q);
+    if (!a) {
+      const status = (this.cur && this.cur._answerVerification) || {};
+      let why;
+      if (!AI.ready) {
+        why = '未启用 AI，暂无原文依据与分析。到「设置 → AI 接口」填入 Base URL / API Key / 模型后，提交时会自动生成。';
+      } else if (status.status === 'failed') {
+        why = 'AI 核验失败，本题未生成解析'
+          + (status.error ? '（' + String(status.error).slice(0, 80) + '）' : '') + '。可点「AI 重新核验」重试。';
+      } else if (status.status === 'partial') {
+        why = '本题未通过 AI 核验，暂未生成解析。可点「AI 重新核验」重试。';
+      } else if (status.status === 'unavailable') {
+        why = 'AI 未就绪，暂无原文依据与分析。到「设置 → AI 接口」检查配置后点「AI 重新核验」。';
+      } else {
+        why = '正在等待 AI 返回解析；若提交后仍未显示，可点「AI 重新核验」。';
+      }
+      return '<div class="tipbox read-analysis is-pending' + state + '">'
+        + '<div class="ra-head"><b>解析</b><span class="ra-badge">待核验</span></div>'
+        + '<p class="ra-pending">' + esc(why) + '</p></div>';
+    }
+    /* AI 与题库答案不一致时不覆盖题库答案（见 _verifyCurrentReading）；
+       此时 AI 的「避错」是按 AI 答案组织的，会与题库答案冲突，故只保留精析并明确提示。*/
+    const aiLetter = String(q._aiAnswer || '').trim().toUpperCase();
+    const conflict = /^[A-D]$/.test(aiLetter) && !!correct && aiLetter !== correct;
+    const wrong = conflict ? {} : (a.wrong || {});
+    const wrongRows = ['A', 'B', 'C', 'D'].filter(letter => wrong[letter]).map(letter => {
+      const mine = this.submitted && picked === letter;
+      return '<div class="ra-wrong' + (mine ? ' is-picked' : '') + '">'
+        + '<i>' + esc(letter) + '</i><span>' + esc(wrong[letter]) + '</span>'
+        + (mine ? '<em>你选的</em>' : '') + '</div>';
+    }).join('');
+    const badge = conflict ? 'AI 核验有分歧'
+      : q._aiVerified ? 'AI 已核验' : (a.source === 'import' ? '题库解析' : '待核验');
+    const badgeClass = conflict ? ' is-warn' : (q._aiVerified ? ' is-ai' : '');
+    return '<div class="tipbox read-analysis' + state + '">'
+      + '<div class="ra-head"><b>解析</b><span class="ra-badge' + badgeClass + '">'
+      + esc(badge) + '</span></div>'
+      + (a.location ? '<div class="ra-row"><b>定位</b><span>' + esc(a.location) + '</span></div>' : '')
+      + (a.quote
+        ? '<div class="ra-row"><b>原文</b><blockquote>' + esc(a.quote) + '</blockquote></div>'
+        : (a.rawQuote ? '<div class="ra-row"><b>依据</b><blockquote>' + esc(a.rawQuote)
+          + '<small class="ra-unlocated">（未能在当前正文中逐字定位，仅供参考）</small></blockquote></div>' : ''))
+      + (conflict ? '<div class="ra-conflict">AI 核对结果为 ' + esc(aiLetter) + '，与题库答案 '
+        + esc(correct) + ' 不一致；已保留题库答案，请自行核对。</div>' : '')
+      + (a.explain ? '<div class="ra-row"><b>精析</b><span>' + esc(a.explain) + '</span></div>' : '')
+      + (wrongRows ? '<div class="ra-row"><b>避错</b><div class="ra-wrongs">' + wrongRows + '</div></div>' : '')
+      + '</div>';
+  },
+
+  /** 点固定搭配：先朗读（[data-say] 统一处理），再就地显示释义。
+   * 本地词书 phr 自带 d（如 argue with — 与…争论）时直接显示；没有才请求 AI。*/
+  async _showColloc(chip) {
+    const phrase = String((chip && chip.dataset && chip.dataset.colloc) || '').trim();
+    if (!phrase) return;
+    const row = chip.closest('.an-colloc-row') || chip.parentElement;
+    let box = row && row.nextElementSibling && row.nextElementSibling.classList
+      && row.nextElementSibling.classList.contains('colloc-meaning') ? row.nextElementSibling : null;
+    if (!box) {
+      box = document.createElement('div');
+      box.className = 'colloc-meaning';
+      if (row && row.insertAdjacentElement) row.insertAdjacentElement('afterend', box);
+      else return;
+    }
+    box.classList.add('on');
+    const known = String(chip.dataset.cn || '').trim();
+    if (known) {
+      box.innerHTML = '<b>' + esc(phrase) + '</b><span>' + esc(known) + '</span>';
+      return;
+    }
+    this._collocCache = this._collocCache || {};
+    if (this._collocCache[phrase]) {
+      box.innerHTML = '<b>' + esc(phrase) + '</b><span>' + esc(this._collocCache[phrase]) + '</span>';
+      return;
+    }
+    if (this._collocBusy === phrase) return;
+    this._collocBusy = phrase;
+    box.innerHTML = '<span class="spin"></span> 正在查询「' + esc(phrase) + '」的释义…';
+    let result = null;
+    try {
+      if (AI.ready && typeof AI.glossPhrase === 'function') {
+        result = await AI.glossPhrase(phrase, (this.selected && this.selected.text) || '', this._ctxOf(phrase));
+      }
+    } catch (e) { result = null; }
+    if (this._collocBusy === phrase) this._collocBusy = null;
+    const cn = result && result.cn;
+    if (cn) {
+      this._collocCache[phrase] = cn;
+      box.innerHTML = '<b>' + esc(phrase) + '</b><span>' + esc(cn) + '</span>';
+    } else {
+      box.innerHTML = '<b>' + esc(phrase) + '</b><span class="colloc-miss">'
+        + esc((result && result.errMsg) || (AI.ready
+          ? '未取到该搭配的释义，可点「AI 深度解析」查看该词用法。'
+          : '未启用 AI，无法查询搭配释义。')) + '</span>';
+    }
+  },
+
 
   _questionNumber(q, i) {
     const found = String(q.number ?? q.q ?? '').match(/\d{1,3}/);
@@ -492,12 +1024,24 @@ const ViewRead = {
       // 词库已在原文上方完整展示，内联下拉只显示选项字母，避免长词挤乱句子。
       return this._wordBank(p).map(x => ({ value: x.letter, label: x.letter }));
     }
-    const paragraphs = Array.isArray(p.paragraphs) ? p.paragraphs : [];
-    return paragraphs.map((para, i) => {
-      const label = typeof para === 'object' ? (para.label || para.letter || String.fromCharCode(65 + i))
-        : ((String(para).match(/^\s*([A-I])\s*[).、]/i) || [])[1] || String.fromCharCode(65 + i));
-      return { value: String(label).toUpperCase(), label: String(label).toUpperCase() };
-    });
+    /* 段落匹配的选项字母统一走 _matchingLabels()：旧实现从段落文本里用 [A-I]
+       猜字母，J 段猜不到就按数组下标兜底，于是出现「两个 I、没有 J」，
+       正确答案对不上、提交后全判错。*/
+    return this._matchingLabels(p).map(label => ({ value: label, label }));
+  },
+
+  /* 题库答案字母：0 基数字 / "C" / "(C)" / "2" 都归一成 A–D；认不出返回 '' */
+  _answerLetter(q) {
+    const value = q && q.a;
+    if (value == null || value === '') return '';
+    if (typeof value === 'number') {
+      return Number.isInteger(value) && value >= 0 && value < 4 ? 'ABCD'[value] : '';
+    }
+    const text = String(value).trim().toUpperCase()
+      .replace(/^[（(\[]+/, '').replace(/[)）。\]、:：]+$/, '');
+    if (/^[A-D]$/.test(text)) return text;
+    if (/^[0-3]$/.test(text)) return 'ABCD'[+text];
+    return '';
   },
 
   _answerValue(value) {
@@ -581,31 +1125,45 @@ const ViewRead = {
   },
 
   _answerActionsHTML(p) {
-    const verification = this._readType(p) === 'traditional' && this.submitted ? p._answerVerification : null;
-    const verificationText = verification ? ({ verified: 'AI 已核验全部答案与原文依据', partial: '部分题目未通过原文核验',
+    /* 用户反馈「答案为什么不自动核验」：旧实现只对 traditional 显示核验状态，
+       选词填空/段落匹配即使提交了也永远显示「待核验」。现在三种客观题都自动核验。*/
+    const type = this._readType(p);
+    const verification = this.submitted && type !== 'cloze' ? p._answerVerification : null;
+    /* 文案必须与实际核验结果一致：有题目与题库答案不一致 / 有答案没定位到依据时，
+       不能笼统写「全部答案与原文依据已核验」。*/
+    const qs = this._questions(p);
+    const hasConflict = qs.some(q => q && q._aiAnswer);
+    const hasUnlocated = qs.some(q => q && q._aiVerified && !q.evidence);
+    const traditionalText = hasConflict
+      ? 'AI 已核验，但有题目与题库答案不一致，请逐题核对'
+      : hasUnlocated ? 'AI 已核验全部答案（部分依据未定位）' : 'AI 已核验全部答案与原文依据';
+    const verifiedText = type === 'section-a' ? 'AI 已核验全部答案，并生成语法/语义判断'
+      : type === 'section-b' ? 'AI 已核验全部段落答案' : traditionalText;
+    const verificationText = verification ? ({ verified: verifiedText, partial: '部分题目未通过原文核验',
       unavailable: '未配置 AI，答案尚未核验', failed: 'AI 核验失败，答案尚未核验' })[verification.status] || '答案尚未核验' : '';
     return `<div class="row" style="margin-top:14px">
       <button class="btn btn-gh" data-act="resetRead">重做</button>
       ${this.submitted
         ? `<button class="btn btn-gh" data-act="showAns">显示全部答案</button>`
         : `<button class="btn btn-pri" data-act="submitRead">✓ 提交并查看解析</button>`}
-      ${verification && verification.status !== 'verified' ? '<button class="btn btn-gh" data-act="verifyAnswers">AI 重新核验</button>' : ''}
+      ${this.submitted && verification && verification.status !== 'verified' ? '<button class="btn btn-gh" data-act="verifyAnswers">AI 重新核验</button>' : ''}
       <span class="sp"></span>
       ${this.submitted
         ? `<b style="color:var(--pri);font-size:15px">得分 ${this._score()} / ${p.totalScore}</b>`
         : `<span class="ans-count" id="ansCount">${this._answered()} / ${this._questions(p).length} 题</span>`}
       ${verification ? `<small class="read-verification ${verification.status === 'verified' ? 'verified' : 'pending'}">${esc(verificationText)}</small>` : ''}
+      ${!this.submitted && (type === 'section-a' || type === 'section-b') ? `<small class="read-verification pending">提交后自动核验答案${type === 'section-a' ? '，并生成语法/语义判断' : ''}</small>` : ''}
     </div>`;
   },
 
   _renderCloze(p, inlineAnswers) {
     if (inlineAnswers == null) inlineAnswers = this.mode === 'edit';
-    const raw = String(p.clozeText || p.text || this._sourceParagraphs(p).join('\n\n')).replace(/\r\n?/g, '\n');
+    /* 与「本段翻译」「点句取句」共用同一套段落数组（含页脚清理），段号才对得上 */
     const questions = this._questions(p);
     const options = this._answerOptions(p);
     const blankRe = /_{2,}\s*(\d{1,3})\s*_{2,}|\[(\d{1,3})\]|\{\{(\d{1,3})\}\}/g;
     const placed = new Set();
-    const paragraphs = raw.split(/\n\s*\n/).filter(text => text.trim());
+    const paragraphs = this._clozeParagraphs(p);
     const rendered = paragraphs.map((paragraph, pi) => {
       const paragraphQuestions = new Set();
       const sentenceList = paragraph.match(/[^.!?]*[.!?]+|[^.!?]+$/g) || [paragraph];
@@ -633,8 +1191,22 @@ const ViewRead = {
         return `<span class="sent ${hl}" data-sent="${key}" data-senttemplate="${esc(sentence.trim())}"
           data-senttext="${esc(plainSentence)}">${html}</span> `;
       }).join('');
-      const explanations = this.submitted
-        ? [...paragraphQuestions].map(i => this._clozeExplanationHTML(i)).join('') : '';
+      /* 用户反馈（图2）：一段里有多个空时，解析卡会全部铺开，页面太长。
+         规则：单空照旧；多空用 <details> 折叠，只把第一道错题展开（全对则展开第一题）。*/
+      const explanationList = [...paragraphQuestions];
+      let explanations = '';
+      if (this.submitted) {
+        if (explanationList.length <= 1) {
+          explanations = explanationList.map(i => this._clozeExplanationHTML(i)).join('');
+        } else {
+          const wrongAt = explanationList.findIndex(i => {
+            const answer = this._answerValue((questions[i] || {}).a);
+            return answer && this._answerValue(this.answers[i]) !== answer;
+          });
+          const openAt = wrongAt >= 0 ? wrongAt : 0;
+          explanations = explanationList.map((i, k) => this._clozeExplainDetails(i, k === openAt)).join('');
+        }
+      }
       return `<div class="para-wrap section-a-para"><p>${sentenceHtml}</p>
         ${this._paraTransHTML(p, paragraph, pi)}${explanations}</div>`;
     }).join('');
@@ -647,7 +1219,14 @@ const ViewRead = {
 
   _renderWordBank(p, centered = false) {
     const bank = this._wordBank(p);
-    return `<div class="read-word-bank ${centered ? 'read-section-a-bank' : ''}"><b>词库</b>${bank.map(x => `<span><strong>${esc(x.letter)}</strong><em>${esc(x.word)}</em></span>`).join('')}</div>`;
+    /* 修改模式下词库里的词也要能点选查词性/翻译（用户反馈：选不中词库里的词）。
+       做题模式保持纯文本，避免泄义影响作答。*/
+    const editable = this.mode === 'edit';
+    const hint = editable ? ' <span class="wb-hint">点单词可查词性 / 翻译</span>' : '';
+    const items = bank.map(x => '<span class="wb-item"><strong>' + esc(x.letter) + '</strong><em>'
+      + (editable ? this._wording(x.word) : esc(x.word)) + '</em></span>').join('');
+    return '<div class="read-word-bank ' + (centered ? 'read-section-a-bank' : '')
+      + '"><b>词库' + hint + '</b>' + items + '</div>';
   },
 
   _renderSectionAQuestions(p) {
@@ -735,118 +1314,201 @@ const ViewRead = {
       (full, a, b, c) => {
         const number = a || b || c;
         const qi = questions.findIndex((q, i) => this._questionNumber(q, i) === number);
-        const chosen = qi >= 0 ? this._wordBank(p).find(x => x.letter === this._answerValue(this.answers[qi])) : null;
-        return chosen ? chosen.word : `[${number}]`;
+        const q = qi >= 0 ? questions[qi] : null;
+        /* 用户反馈「长难句分析为什么把错误答案分析了」：优先用题库/AI 核验的正确答案，
+           拿不到时才退回用户所选；被分析的句子必须是正确句子。*/
+        const letter = q ? (this._answerValue(q.a) || this._answerValue(this.answers[qi])) : '';
+        const chosen = qi >= 0 ? this._wordBank(p).find(x => x.letter === letter) : null;
+        return chosen ? chosen.word : '[' + number + ']';
       }).replace(/\s+/g, ' ').trim();
+  },
+
+  /** 选词填空解析卡的可折叠外壳：summary 先给结论，点开才看语法/语义判断 */
+  _clozeExplainDetails(index, open) {
+    const q = this._questions(this.cur)[index] || {};
+    const selected = this._answerValue(this.answers[index]);
+    const correct = this._answerValue(q.a);
+    const bank = this._wordBank(this.cur);
+    const chosenWord = bank.find(x => x.letter === selected);
+    const correctWord = bank.find(x => x.letter === correct);
+    const isRight = !!correct && selected === correct;
+    const yourAnswer = chosenWord ? chosenWord.letter + ') ' + chosenWord.word : '未作答';
+    const rightAnswer = correctWord ? correctWord.letter + ') ' + correctWord.word : (correct || '待核验');
+    const summary = esc(this._questionNumber(q, index)) + ' 题 · 你的答案 ' + esc(yourAnswer)
+      + ' · 正确答案 ' + esc(rightAnswer) + ' · '
+      + (isRight ? '✓' : (correct ? '✗' : '待核验'));
+    return '<details class="section-a-explain-details ' + (isRight ? 'right' : 'wrong') + '"'
+      + (open ? ' open' : '') + '>'
+      + '<summary class="sa-explain-summary">' + summary + '</summary>'
+      + this._clozeExplanationHTML(index)
+      + '</details>';
   },
 
   _clozeExplanationHTML(index) {
     const q = this._questions(this.cur)[index] || {};
     const selected = this._answerValue(this.answers[index]);
     const correct = this._answerValue(q.a);
-    const chosenWord = this._wordBank(this.cur).find(x => x.letter === selected);
-    const correctWord = this._wordBank(this.cur).find(x => x.letter === correct);
+    const bank = this._wordBank(this.cur);
+    const chosenWord = bank.find(x => x.letter === selected);
+    const correctWord = bank.find(x => x.letter === correct);
     const isRight = !!correct && selected === correct;
-    const yourAnswer = chosenWord ? `${chosenWord.letter}) ${chosenWord.word}` : '未作答';
-    const rightAnswer = correctWord ? `${correctWord.letter}) ${correctWord.word}` : correct;
-    return `<div class="section-a-explain ${isRight ? 'right' : 'wrong'}">
-      <div class="section-a-explain-head"><b>${esc(this._questionNumber(q, index))} 题</b><span>${isRight ? '✓ 正确' : '正确答案'}</span></div>
-      ${!isRight ? `<div class="section-a-explain-answer">你的答案：${esc(yourAnswer)}</div>` : ''}
-      <div class="section-a-explain-answer">正确答案：<strong>${esc(rightAnswer)}</strong></div>
-      ${q.explain ? `<p>${esc(q.explain)}</p>` : ''}
-      ${q.evidence ? `<small>原文依据：${esc(q.evidence)}</small>` : ''}
-    </div>`;
+    const yourAnswer = chosenWord ? chosenWord.letter + ') ' + chosenWord.word : '未作答';
+    const rightAnswer = correctWord ? correctWord.letter + ') ' + correctWord.word : (correct || '待核验');
+    const pos = correctWord ? (this._wordInfo(correctWord.word).parts || [])
+      .map(x => this._posLabel(x)).filter(Boolean).join('/') : '';
+    /* 用户要求：去掉「原文依据」，改成教辅式的【语法判断】+【语义判断】
+       （见 docs 中答案详解样式）。判断由 AI 核验时生成，缓存到 q._clozeExplain。*/
+    const detail = q._clozeExplain || {};
+    const sense = String(detail.meaning || '').trim();
+    const judge = (label, text) => text
+      ? '<div class="sa-judge"><b>' + label + '</b>' + esc(text) + '</div>' : '';
+    const fallback = !detail.grammar && !detail.semantics
+      ? '<p class="sa-pending">' + (q.explain ? esc(q.explain)
+        : (AI.ready ? 'AI 正在核验本题，完成后自动显示语法/语义判断。'
+          : '未启用 AI，暂无语法/语义判断。')) + '</p>' : '';
+    const conflict = q._aiAnswer && correct && q._aiAnswer !== correct
+      ? '<small class="sa-conflict">AI 核对结果为 ' + esc(q._aiAnswer) + '，与题库答案不一致，请自行核对。</small>' : '';
+    return '<div class="section-a-explain ' + (isRight ? 'right' : 'wrong') + '">'
+      + '<div class="section-a-explain-head"><b>' + esc(this._questionNumber(q, index)) + ' 题</b>'
+      + '<span>' + (isRight ? '✓ 正确' : '正确答案') + '</span></div>'
+      + (!isRight ? '<div class="section-a-explain-answer">你的答案：' + esc(yourAnswer) + '</div>' : '')
+      + '<div class="section-a-explain-answer">正确答案：<strong>' + esc(rightAnswer) + '</strong>'
+      + (pos ? '<i class="sa-pos">' + esc(pos) + '</i>' : '')
+      + (sense ? '<em class="sa-sense">' + esc(sense) + '</em>' : '') + '</div>'
+      + judge('语法判断', detail.grammar)
+      + judge('语义判断', detail.semantics)
+      + conflict + fallback
+      + '</div>';
   },
 
   _readingContentHTML(p) {
     const type = this._readType(p);
     if (type === 'cloze') {
-      return `<div class="read-directions">阅读短文，根据上下文和选项，为每个编号空选择最合适的词。</div>
-        ${this._renderClozeInline(p)}
-        ${this.mode === 'edit' ? this._answerActionsHTML(p) : ''}`;
+      return '<div class="read-directions">阅读短文，根据上下文和选项，为每个编号空选择最合适的词。</div>'
+        + this._renderClozeInline(p)
+        + (this.mode === 'edit' ? this._answerActionsHTML(p) : '');
     }
     if (type === 'section-a') {
-      return `<div class="read-directions">每个空选择一个词；每个词最多使用一次。${this.mode === 'exam' ? '在题目区作答。' : '点击原文中的答案可更换。'}</div>
-        ${this._renderCloze(p, this.mode === 'edit')}
-        `;
+      return '<div class="read-directions">每个空选择一个词；每个词最多使用一次。'
+        + (this.mode === 'exam' ? '在题目区作答。' : '点击原文中的答案可更换。') + '</div>'
+        + this._renderCloze(p, this.mode === 'edit');
     }
     if (type === 'section-b') {
-      return `<div class="read-directions">阅读段落后，为每条陈述选择对应段落；同一段可对应多条陈述。</div>
-        ${this._renderMatchingParagraphs(p)}
-        ${this.mode === 'edit' ? this._answerActionsHTML(p) : ''}`;
+      return '<div class="read-directions">阅读段落后，为每条陈述选择对应段落；同一段可对应多条陈述。</div>'
+        + this._renderMatchingParagraphs(p)
+        + (this.mode === 'edit' ? this._answerActionsHTML(p) : '');
     }
-    return `<div class="passage ${this.mode === 'exam' ? 'locked' : 'edit'}" id="passage">
-      ${(p.paragraphs || []).map((para, pi) => `<div class="para-wrap">
-        <p style="margin-bottom:6px">${this._renderPara(para, pi)}</p>
-        ${this._paraTransHTML(p, para, pi)}
-      </div>`).join('')}
-    </div>`;
+    /* 统一走 _parasOf()：既保证「本段翻译」段号一致，也顺带清掉导入 PDF 混进正文的页脚 */
+    const paragraphs = this._parasOf(p);
+    return '<div class="passage ' + (this.mode === 'exam' ? 'locked' : 'edit') + '" id="passage">'
+      + paragraphs.map((para, pi) => '<div class="para-wrap">'
+        + '<p style="margin-bottom:6px">' + this._renderPara(para, pi) + '</p>'
+        + this._paraTransHTML(p, para, pi) + '</div>').join('')
+      + '</div>';
   },
 
   _renderMatchingParagraphs(p) {
     const paragraphs = Array.isArray(p.paragraphs) ? p.paragraphs : [];
-    return `<div class="passage ${this.mode === 'exam' ? 'locked' : 'edit'} read-matching-paragraphs" id="passage">
-      ${paragraphs.map((para, i) => {
-        const label = typeof para === 'object' ? (para.label || para.letter || String.fromCharCode(65 + i))
-          : ((String(para).match(/^\s*([A-I])\s*[).、]\s*/i) || [])[1] || String.fromCharCode(65 + i));
-        const text = this._sourceParagraphs({ paragraphs: [para] })[0] || '';
-        const displayText = typeof para === 'string' ? text.replace(/^\s*[A-I]\s*[).、]\s*/i, '') : text;
+    const labels = this._matchingLabels(p);
+    const texts = this._parasOf(p);
+    return '<div class="passage ' + (this.mode === 'exam' ? 'locked' : 'edit')
+      + ' read-matching-paragraphs" id="passage">'
+      + paragraphs.map((para, i) => {
+        const label = labels[i];
+        const displayText = texts[i] || '';
         const related = this.mode === 'edit' ? this._questions(p).map((q, qi) => ({ q, qi }))
           .filter(({ q, qi }) => this._answerValue(this.submitted ? q.a : this.answers[qi]) === String(label).toUpperCase()) : [];
-        return `<div class="read-match-paragraph"><b>${esc(label)}</b><div>
-          <p>${this._renderPara(displayText, i)}</p>${this._paraTransHTML(p, displayText, i)}
-          ${related.map(({ q, qi }) => this._matchingReviewCard(q, qi)).join('')}
-        </div></div>`;
-      }).join('')}
-      ${this.mode === 'edit' ? (() => {
-        const labels = new Set(this._answerOptions(p).map(option => option.value));
+        return '<div class="read-match-paragraph"><b>' + esc(label) + '</b><div>'
+          + '<p>' + this._renderPara(displayText, i) + '</p>'
+          + this._paraTransHTML(p, displayText, i)
+          + related.map(({ q, qi }) => this._matchingReviewCard(q, qi)).join('')
+          + '</div></div>';
+      }).join('')
+      + (this.mode === 'edit' ? (() => {
+        const labelSet = new Set(labels);
         const unassigned = this._questions(p).map((q, qi) => ({ q, qi })).filter(({ q, qi }) =>
-          !labels.has(this._answerValue(this.submitted ? q.a : this.answers[qi])));
-        return unassigned.length ? `<div class="read-match-unassigned"><b>未归入段落的句子</b>${unassigned.map(({ q, qi }) =>
-          this._matchingReviewCard(q, qi)).join('')}</div>` : '';
-      })() : ''}
-    </div>`;
+          !labelSet.has(this._answerValue(this.submitted ? q.a : this.answers[qi])));
+        return unassigned.length ? '<div class="read-match-unassigned"><b>未归入段落的句子</b>'
+          + unassigned.map(({ q, qi }) => this._matchingReviewCard(q, qi)).join('') + '</div>' : '';
+      })() : '')
+      + '</div>';
   },
 
   _matchingReviewCard(q, index) {
     const chosen = this._answerValue(this.answers[index]);
     const correct = this._answerValue(q.a);
-    return `<div class="read-match-review">
-      <div><b>${esc(this._questionNumber(q, index))}.</b> ${esc(q.statement || q.q || q.text || '')}</div>
-      <small>你的答案：${esc(chosen || '未作答')}${this.submitted ? `　·　正确段落：${esc(correct || '待核验')}${chosen === correct ? '　✓' : ''}` : ''}</small>
-      ${!this.submitted ? this._renderAnswerSelect(index, this._answerOptions(this.cur)) : ''}
-      ${this.submitted && q.explain ? `<div class="tipbox"><b>解析</b>　${esc(q.explain)}${q.evidence ? `<br>原文依据：${esc(q.evidence)}` : ''}</div>` : ''}
-    </div>`;
+    const ai = this._answerValue(q._aiAnswer);
+    const verdict = !this.submitted ? '' : (!correct ? '　·　正确答案待核验'
+      : (chosen === correct ? '　·　✓ 正确' : '　·　✗ 错误'));
+    /* 用户反馈（图3）：答错时只是一行小字，不够显眼。整张卡用红框/红底；答对用绿框。*/
+    const state = !this.submitted || !correct ? '' : (chosen === correct ? ' review-right' : ' review-wrong');
+    return '<div class="read-match-review' + state + '">'
+      + '<div><b>' + esc(this._questionNumber(q, index)) + '.</b> ' + esc(q.statement || q.q || q.text || '') + '</div>'
+      + '<small>你的答案：' + esc(chosen || '未作答')
+      + (this.submitted ? '　·　正确段落：' + esc(correct || '待核验') + verdict : '')
+      + (ai && correct && ai !== correct ? '　·　AI 核对：' + esc(ai) + '（与题库不一致）' : '')
+      + '</small>'
+      + (!this.submitted ? this._renderAnswerSelect(index, this._answerOptions(this.cur)) : '')
+      + (this.submitted ? this._matchingExplainHTML(q) : '')
+      + '</div>';
   },
 
   _renderQuestions(p) {
     const type = this._readType(p), questions = this._questions(p);
     if (type === 'section-a') {
-      return `<div class="read-special-questions section-a-note">
-        <p>本篇共 ${questions.length} 个空。提交后，每个空的解析会显示在对应段落下方。</p>
-      </div>`;
+      return '<div class="read-special-questions section-a-note">'
+        + '<p>本篇共 ' + questions.length + ' 个空。提交后，每个空的解析会显示在对应段落下方。</p>'
+        + '</div>';
     }
     if (type === 'section-b') {
       const options = this._answerOptions(p);
-      return `<div class="read-special-questions ${type}">
-        ${questions.map((q, i) => `<div class="read-special-question">
-          <b>${esc(this._questionNumber(q, i))}.</b>
-          <span>${esc(q.statement || q.q || q.text || '')}</span>
-          ${type === 'section-b' ? this._renderAnswerSelect(i, options) : ''}
-          ${this.submitted && q.explain ? `<div class="tipbox"><b>解析</b>　${esc(q.explain)}${q.evidence ? `<br><span style="color:var(--tx3)">原文依据：${esc(q.evidence)}</span>` : ''}</div>` : ''}
-        </div>`).join('')}
-      </div>`;
+      return '<div class="read-special-questions ' + type + '">'
+        + questions.map((q, i) => {
+          const selected = this._answerValue(this.answers[i]);
+          const correct = this._answerValue(q.a);
+          const state = this.submitted
+            ? (correct ? (selected === correct ? ' right' : ' wrong') : '') : '';
+          const verdict = this.submitted ? (correct
+            ? (selected === correct ? '✓ 正确' : (selected ? '✗ 错误' : '✗ 未作答'))
+            : '正确答案待核验') : '';
+          return '<div class="read-special-question' + state + '">'
+            + '<b>' + esc(this._questionNumber(q, i)) + '.</b>'
+            + '<span>' + esc(q.statement || q.q || q.text || '')
+            + (this.submitted ? '<small class="rd-q-verdict">' + verdict
+              + (correct ? ' · 正确答案 ' + esc(correct) : '') + '</small>' : '') + '</span>'
+            + this._renderAnswerSelect(i, options)
+            + (this.submitted ? this._matchingExplainHTML(q) : '')
+            + '</div>';
+        }).join('')
+        + '</div>';
     }
-    return `<div class="two-col" id="qWrap">
-      ${questions.map((q, i) => `
-        <div class="q-item">
-          <div class="qt">${esc(this._questionNumber(q, i))}. ${this._wording(this._questionPrompt(q, i))}</div>
-          ${(q.opts || []).map((o, k) => `<div class="q-opt ${this.submitted ? (k === q.a ? 'right' : (this.answers[i] === k ? 'wrong' : '')) : (this.answers[i] === k ? 'sel' : '')}"
-            data-q="${i}" data-o="${k}"><span class="k">${'ABCD'[k]}</span><span>${this._wording(o)}</span></div>`).join('')}
-          ${this.submitted ? `<div class="tipbox"><b>解析${type === 'traditional' ? (q._aiVerified ? ' · AI 已核验' : ' · 待核验') : ''}</b>　${esc(q.explain || '')}<br>
-            <span style="color:var(--tx3)">原文依据：${esc(q.evidence || '')}</span></div>` : ''}
-        </div>`).join('')}
-    </div>`;
+    /* 修改模式下传统阅读的题卡改为单列横板：两列并排会把【定位/原文/精析/避错】挤成窄条
+       （用户反馈「前面挤着不好看」）。做题模式仍在右侧窄栏（CSS 已强制单列），保持原样；
+       完形填空等其它题型也不动。*/
+    const qWrapClass = type === 'traditional' && this.mode === 'edit' ? 'read-q-list' : 'two-col';
+    return '<div class="' + qWrapClass + '" id="qWrap">'
+      + questions.map((q, i) => {
+        const opts = (q.opts || []).map((o, k) => {
+          const cls = this.submitted
+            ? (k === q.a ? 'right' : (this.answers[i] === k ? 'wrong' : ''))
+            : (this.answers[i] === k ? 'sel' : '');
+          return '<div class="q-opt ' + cls + '" data-q="' + i + '" data-o="' + k + '">'
+            + '<span class="k">' + 'ABCD'[k] + '</span><span>' + this._wording(o) + '</span></div>';
+        }).join('');
+        /* 用户反馈：旧卡片在没有解析时只剩「解析 · 待核验　原文依据：」两个空标签；
+           现在传统阅读改为教辅式【定位/原文/精析/避错】卡片，没有解析就说明原因。
+           完形填空（cloze 四选一）保持原样，不在本轮反馈范围内。*/
+        const explain = this.submitted
+          ? (type === 'traditional'
+            ? this._readingAnalysisHTML(q, i)
+            : '<div class="tipbox"><b>解析</b>　' + esc(q.explain || '')
+              + (q.evidence ? '<br><span style="color:var(--tx3)">原文依据：' + esc(q.evidence) + '</span>' : '')
+              + '</div>')
+          : '';
+        return '<div class="q-item"><div class="qt">' + esc(this._questionNumber(q, i)) + '. '
+          + this._wording(this._questionPrompt(q, i)) + '</div>' + opts + explain + '</div>';
+      }).join('')
+      + '</div>';
   },
 
   /* ---------- 段落渲染 ----------
@@ -863,27 +1525,30 @@ const ViewRead = {
     if (this.mode === 'exam') return '';
     const cache = (this._paraCn = this._paraCn || {});
     const openSet = (this._paraOpen = this._paraOpen || new Set());
-    const key = `${p.id}_${pi}`;
+    const key = p.id + '_' + pi;
     const open = openSet.has(key);
     const cn = cache[key];
-    return `<div class="para-tr">
-      <button class="btn btn-xs btn-gh para-tr-btn" data-act="togglePara" data-pi="${pi}"
-        title="${open ? '收起本段翻译' : '展开本段中文翻译'}">
-        ${open ? '收起翻译 ▴' : '📘 本段翻译 ▾'}
-      </button>
-      <div class="para-tr-cn" ${open ? '' : 'hidden'}>${cn ? esc(cn) : ''}</div>
-    </div>`;
+    return '<div class="para-tr">'
+      + '<button class="btn btn-xs btn-gh para-tr-btn" data-act="togglePara" data-pi="' + pi + '"'
+      + ' title="' + (open ? '收起本段翻译' : '展开本段中文翻译') + '">'
+      + (open ? '收起翻译 ▴' : '📘 本段翻译 ▾') + '</button>'
+      + '<div class="para-tr-cn"' + (open ? '' : ' hidden') + '>' + (cn ? esc(cn) : '')
+      + (open ? this._paraAnswersHTML(p, para, pi) : '')
+      + '</div></div>';
   },
 
   /** 展开 / 收起某段翻译；首次展开调 AI 翻译 */
   async _togglePara(pi) {
     const p = this.cur;
     if (!p) return;
-    const para = this._sourceParagraphs(p)[pi];
-    if (!para) return;
+    /* 用 _parasOf（和正文渲染同一份段落数组）。旧代码用 _sourceParagraphs(p)[pi]：
+       导入篇 p.paragraphs 只有 1 段时，第 1 段翻译=整篇，第 2 段以后 undefined 直接
+       return —— 就是用户反馈的「本段翻译把全文都翻了 / 下一段点不动」。*/
+    const para = this._parasOf(p)[pi];
+    if (!para) { App.toast('没有找到本段文本，请刷新后重试', 'warn'); return; }
     this._paraOpen = this._paraOpen || new Set();
     this._paraCn = this._paraCn || {};
-    const key = `${p.id}_${pi}`;
+    const key = p.id + '_' + pi;
 
     // 已展开 → 收起。翻译中也允许收起，否则用户点不动。
     if (this._paraOpen.has(key)) {
@@ -891,24 +1556,23 @@ const ViewRead = {
       this._reRenderPassage();
       return;
     }
-    // 本段正在翻译 → 忽略重复点击（展开其他段不受影响）
     if (this._paraBusy === key) {
       App.toast('本段正在翻译，请稍候…', '');
       return;
     }
-    // 已有翻译 → 直接展开，不重复请求
     if (this._paraCn[key] && !/^（(?:翻译失败|未启用 AI)/.test(this._paraCn[key])) {
       this._paraOpen.add(key);
       this._reRenderPassage();
       return;
     }
-    // 首次展开：显示占位，边翻译边更新
     this._paraBusy = key;
     this._paraOpen.add(key);
     this._paraCn[key] = '（翻译中…）';
     this._reRenderPassage();
     try {
-      const cn = await AI.translate(para);
+      /* 选词填空/完形填空先把正确选项填回空位再翻译，译文才完整（用户明确要求） */
+      const source = this._clozeTranslateSource(p, para);
+      const cn = await AI.translate(source);
       if (!cn || /^（(?:翻译失败|未启用 AI)/.test(cn)) {
         delete this._paraCn[key];
         if (this.cur === p) {
@@ -918,13 +1582,8 @@ const ViewRead = {
         }
         return;
       }
-      // 若翻译期间用户已收起，就不再把面板弹开
-      if (this.cur === p && this._paraOpen.has(key)) {
-        this._paraCn[key] = cn || '（翻译失败，可在设置页启用 AI 后重试）';
-        this._reRenderPassage();
-      } else if (this.cur === p) {
-        this._paraCn[key] = cn || '（翻译失败，可在设置页启用 AI 后重试）';
-      }
+      this._paraCn[key] = cn;
+      if (this.cur === p && this._paraOpen.has(key)) this._reRenderPassage();
     } finally {
       if (this._paraBusy === key) this._paraBusy = null;
     }
@@ -1017,17 +1676,25 @@ const ViewRead = {
       const defs = info.parts.length
         ? info.parts.map(x => `<div class="pos-line"><span class="t">${esc(this._posLabel(x) || '词义')}</span><span>${esc(x.meaning)}</span></div>`).join('')
         : `<div>${esc(info.meaning)}</div>`;
-      return histBlock + aiBlock + `<div class="an-word">${esc(sel.text)}</div>
+      /* 音标：词书 ph 常带 "/ … /" 空格与 ASCII 撇号，甚至是空占位 "/  /"，
+       * 统一清洗后显示；词书没有就回退内置词典（prevalence 属于词书命中）。*/
+      const ph = this._wordPhonetic(info);
+      return histBlock + aiBlock + `<div class="an-word-h">
+        <div class="an-word">${esc(sel.text)}</div>
+        ${ph
+        ? `<div class="an-ph" title="国际音标">${esc(ph)}</div>`
+        : '<div class="an-ph an-ph-none">暂无音标</div>'}
         ${sel.text ? `<button class="btn btn-xs btn-gh an-say" data-say="${esc(sel.text)}"
           title="朗读当前划线词"><svg viewBox="0 0 24 24" class="ic ic-sm">
-          <path d="M4 9v6h4l5 4V5L8 9H4z"/><path d="M16.5 8.5a5 5 0 010 7"/></svg>读</button>` : ''}
-        <div style="font-size:13.5px;margin:8px 0 4px;line-height:1.7">${defs}</div>
-        ${inBk && inBk.phr && inBk.phr.length ? `<div class="sec-t">固定搭配</div>
-          <div>${inBk.phr.map(p => `<span class="chip" data-say="${esc(p.p)}">${esc(p.p)}</span>`).join('')}</div>` : ''}
+          <path d="M4 9v6h4l5 4V5L8 9H4z"/><path d="M16.5 8.5a5 5 0 010 7"/></svg>朗读</button>` : ''}
+      </div>
+      <div class="an-defs">${defs}</div>
+        ${inBk && inBk.phr && inBk.phr.length ? `<div class="sec-t">固定搭配 <small class="sec-t-tip">点击朗读并显示释义</small></div>
+          <div class="an-colloc-row">${inBk.phr.map(p => `<span class="chip chip-colloc" data-colloc="${esc(p.p)}" data-cn="${esc(p.d || '')}" data-say="${esc(p.p)}" title="${esc(p.d || '点击查看释义')}">${esc(p.p)}</span>`).join('')}</div>
+          <div class="colloc-meaning"></div>` : ''}
         ${inBk && inBk.ex && inBk.ex.length ? `<div class="sec-t">例句</div>
           ${inBk.ex.map(e => `<div class="ex-item">${esc(e.en)}<div class="cn">${esc(e.cn)}</div></div>`).join('')}` : ''}
-        <div class="row" style="margin-top:12px;gap:6px">
-          <button class="btn btn-xs btn-gh" data-say="${esc(sel.text)}">🔊 发音</button>
+        <div class="row an-actions">
           <button class="btn btn-xs btn-pri" data-act="nbAddWord">+ 生词本</button>
           <button class="btn btn-xs btn-gh" data-act="nbAddTomorrow">加入明日待背</button>
         </div>
@@ -1305,6 +1972,8 @@ const ViewRead = {
     if (!box) return;
     /* 发音按钮：先 stop 再播，避免叠加 */
     on(box, 'click', '[data-say]', (e, t) => { Speech.stop(); Speech.speak(t.dataset.say, { rate: .85 }); });
+    /* 固定搭配：朗读由上面的 [data-say] 负责，这里补「显示这个搭配的意思」 */
+    on(box, 'click', '[data-colloc]', (e, t) => { ViewRead._showColloc(t); });
     // 点击历史条：切回该词/句
     on(box, 'click', '[data-hist]', (e, t) => {
       const txt = t.dataset.hist;
@@ -1445,12 +2114,12 @@ const ViewRead = {
     const info = this._wordInfo(text);
     const tr = info.parts && info.parts.length ? info.parts : [{ t: '', d: info.meaning || '词典未收录' }];
     const meaning = tr.map(x => (this._posLabel(x) ? this._posLabel(x) + ' ' : '') + x.meaning).join('；');
-    const phText = this._phoneticText(info.phonetic);
+    const phText = this._wordPhonetic(info);
     const pop = document.createElement('div');
     pop.id = 'readWordPop';
     pop.className = 'read-word-pop';
     pop.innerHTML = `
-      <div class="rw-head"><b>${esc(text)}</b></div>
+      <div class="rw-head"><b>${esc(text)}</b>${phText ? `<span>${esc(phText)}</span>` : ''}</div>
       <div class="rw-mean">${esc(meaning || '词典未收录')}</div>
       <div class="rw-actions">
         <button type="button" data-nb>＋ 生词本</button>
@@ -1470,10 +2139,11 @@ const ViewRead = {
     pop.querySelector('[data-nb]').onclick = () => {
       const ok = Store.nbAdd({
         w: text,
-        ph: info.phonetic || '',
+        ph: phText,
         tr: tr.map(x => ({ t: x.label || x.pos || '', d: x.meaning })),
         srcTag: '阅读划词',
         origin: '来自阅读文章《' + (this.cur.title || '') + '》',
+        paper: this._curPaper(),
       });
       App.toast(ok ? '已加入生词本' : '生词本里已有这个词', ok ? 'ok' : '');
       this._hideWordPop();
@@ -1592,6 +2262,18 @@ const ViewRead = {
     if (!ph) return '';
     ph = ph.replace(/:/g, 'ː').replace(/'/g, 'ˈ');
     return '/' + ph + '/';
+  },
+
+  /** 取词条音标：词书 ph 可能为空占位（"/  /"）或带空格的脏串，
+   *  清洗后仍为空就回退内置词典（与词汇页 vocabPh 同一口径），都没有返回空串。*/
+  _wordPhonetic(info) {
+    const src = info || {};
+    const candidates = [src.book && src.book.ph, src.phonetic, src.global && src.global[0]];
+    for (const raw of candidates) {
+      const ph = this._phoneticText(raw);
+      if (ph) return ph;
+    }
+    return '';
   },
 
   /** 历史折叠条 HTML（最新的一条不显示，只显示更早的） */
@@ -1937,9 +2619,11 @@ const ViewRead = {
         fragment.querySelectorAll('.read-answer-wrap').forEach(wrap => {
           const select = wrap.querySelector('[data-special-answer]');
           const index = select ? +select.dataset.specialAnswer : -1;
-          const chosen = index >= 0
-            ? this._wordBank(this.cur).find(x => x.letter === this._answerValue(this.answers[index])) : null;
-          wrap.replaceWith(document.createTextNode(chosen ? ` ${chosen.word} ` : ' [空] '));
+          const q = index >= 0 ? this._questions(this.cur)[index] : null;
+          /* 与 _clozeSentenceText 同一口径：划选出来的句子用正确答案，不用用户选错的答案 */
+          const letter = q ? (this._answerValue(q.a) || this._answerValue(this.answers[index])) : '';
+          const chosen = index >= 0 ? this._wordBank(this.cur).find(x => x.letter === letter) : null;
+          wrap.replaceWith(document.createTextNode(chosen ? ' ' + chosen.word + ' ' : ' [空] '));
         });
         const t = fragment.textContent.replace(/\s+/g, ' ').trim();
         if (t) return t;
@@ -2111,6 +2795,15 @@ const ViewRead = {
   },
 
   /* ---------- 生词本 ---------- */
+  /** 当前篇目的卷面快照：加生词时随条目存档，导出页「来源」直接用，不靠事后猜。
+   *  字段与 importedPapers / 阅读篇目同构（year / session / setNo / level）。*/
+  _curPaper() {
+    const c = this.cur || {};
+    return {
+      id: c.id || '', year: c.year || '', session: c.session || '',
+      setNo: c.setNo == null ? '' : c.setNo, level: c.level || '', mine: !!c.mine,
+    };
+  },
   _nbWord(tomorrow) {
     const sel = this.selected;
     if (!sel) return;
@@ -2118,25 +2811,27 @@ const ViewRead = {
     const info = this._wordInfo(w);
     const inBk = info.book;
     Store.nbAdd({
-      w, ph: info.phonetic ? '/' + info.phonetic + '/' : '',
+      w, ph: this._wordPhonetic(info),
       tr: info.parts.map(x => ({ t: x.pos, d: x.meaning })),
       phr: inBk ? inBk.phr.map(p => `${p.p} — ${p.d}`) : [],
       extra: [], root: '',
       ex: inBk && inBk.ex && inBk.ex[0] ? `${inBk.ex[0].en}  ${inBk.ex[0].cn}` : '',
-      srcTag: tomorrow ? '阅读·明日待背' : '阅读划线',
+      srcTag: tomorrow ? '阅读·明日待背' : '阅读划词',
       tomorrow: !!tomorrow,
       origin: `来自阅读文章「${this.cur.title}」（${this.cur.level}）第${this._paraOf(sel.text)}段划线，原句：${sel.type === 'sent' ? sel.text : this._ctxOf(sel.text)}`,
+      paper: this._curPaper(),
     });
     App.toast(tomorrow ? '已加入生词本（标记为明日待背）' : '已加入生词本', 'ok');
   },
   _paraOf(txt) {
-    const p = this._sourceParagraphs(this.cur).findIndex(p => p.includes(txt.slice(0, 20)));
+    const p = this._parasOf(this.cur).findIndex(text => text.includes(String(txt).slice(0, 20)));
     return p + 1;
   },
   _ctxOf(w) {
-    for (const para of this._sourceParagraphs(this.cur)) {
-      const i = para.toLowerCase().indexOf(w.toLowerCase());
-      if (i >= 0) return '…' + para.slice(Math.max(0, i - 50), Math.min(para.length, i + w.length + 50)) + '…';
+    const needle = String(w || '').toLowerCase();
+    for (const para of this._parasOf(this.cur)) {
+      const i = para.toLowerCase().indexOf(needle);
+      if (i >= 0) return '…' + para.slice(Math.max(0, i - 50), Math.min(para.length, i + needle.length + 50)) + '…';
     }
     return '';
   },
@@ -2157,6 +2852,13 @@ const ViewRead = {
       return a.length
         ? a.map(x => `<span class="chip">${esc(x)}</span>`).join('')
         : `<span class="ai-none">${esc(ph || '本次未返回')}</span>`;
+    };
+    /* 搭配 chip：点击朗读 + 就地显示释义（用户要求：不能只读不解释） */
+    const collocChip = arr => {
+      const a = (arr || []).filter(Boolean);
+      return a.length
+        ? a.map(x => `<span class="chip chip-colloc" data-colloc="${esc(x)}" data-say="${esc(x)}" title="点击朗读并显示释义">${esc(x)}</span>`).join('')
+        : '<span class="ai-none">本次未返回</span>';
     };
     const row = (label, inner) => `<div class="ai-in-row"><b>${label}</b><span>${inner}</span></div>`;
     const txt = (v, ph) => (v && String(v).trim())
@@ -2181,7 +2883,7 @@ const ViewRead = {
       ${row('语境释义', (d.pos && d.pos.length)
         ? d.pos.map(p => `<div class="ai-pos"><i>${esc(p.t || '')}</i>${esc(p.d || '')}</div>`).join('')
         : '<span class="ai-none">本次未返回</span>')}
-      ${row('常用搭配', chip(d.collocation, '本次未返回'))}
+      ${row('常用搭配', '<span class="an-colloc-row">' + collocChip(d.collocation) + '</span><div class="colloc-meaning"></div>')}
       ${row('词根词缀', txt(d.root, '无明显词根'))}
       ${row('近义词', chip(d.synonym, '本次未返回'))}
       ${row('反义词', chip(d.antonym, '无常见反义词'))}
@@ -2281,13 +2983,23 @@ const ViewRead = {
     const all = [...new Set([...markedWords, ...nbWords])];
     all.forEach(w => {
       const d = Dict.get(w), inBk = Dict.inBook(Store.d.activeBook, w);
+      /* 这份导出 = 当前篇目的划线词 + 生词本里所有「阅读」来源的词；
+       * 只有当前篇目的词才能盖当前卷面的章，其余沿用它们自己加词时记下的 paper/origin，
+       * 否则会把别的卷子的词也标成「2023 年 3 月 六级第一套」。*/
+      const fromCur = markedWords.indexOf(w) >= 0;
+      const nbItem = Store.d.notebook.find(x => x.w === w) || null;
+      const origin = fromCur || !nbItem || !nbItem.origin
+        ? `来自阅读文章《${p.title}》（${p.level}）· ${p.genre}话题，${this._paraOf(w)}段`
+        : nbItem.origin;
+      const paper = fromCur ? this._curPaper() : (nbItem && nbItem.paper ? nbItem.paper : null);
       items.push({
         w, ph: (d && d[0]) ? '/' + d[0] + '/' : '',
         tr: d ? [{ t: '', d: d[1] }] : (inBk ? inBk.tr : []),
         phr: inBk ? inBk.phr.map(x => `${x.p} — ${x.d}`) : [],
         root: '', extra: [], ex: '',
-        srcTag: '阅读划线', addedAt: new Date().toISOString(),
-        origin: `来自阅读文章《${p.title}》（${p.level}）· ${p.genre}话题，${this._paraOf(w)}段`,
+        srcTag: '阅读划词', addedAt: new Date().toISOString(),
+        origin,
+        paper,
       });
     });
     if (!items.length) { App.toast('还没有可导出的生词，先划线或加入生词本', ''); return; }
@@ -2334,6 +3046,8 @@ const ViewRead = {
       const i = arr.indexOf(p);
       if (i >= 0) arr.splice(i, 1);
       Importer.unmarkMine('reading', p.id);
+      /* 删除后若这套卷已无其它导入篇目，清掉查重登记，否则重新导入同一 PDF 会被永久跳过 */
+      if (typeof Importer.forgetImportedPaper === 'function') Importer.forgetImportedPaper(p);
       this.pi = 0; this.answers = {}; this.submitted = false; this.marks = {};
       this._shell($('#view'));
       App.toast('已删除', 'ok');

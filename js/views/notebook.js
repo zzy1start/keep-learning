@@ -45,7 +45,7 @@ const ViewNotebook = {
             <span class="w">${esc(x.w)}</span>
             <span class="cn">${esc((x.tr && x.tr[0] ? x.tr[0].d : '') || '—')}
               ${x.tr && x.tr.length > 1 ? `<span style="color:var(--tx3);font-size:12px"> / ${esc(x.tr.slice(1, 3).map(t => t.d).join(' / '))}</span>` : ''}</span>
-            ${x.srcTag ? `<span class="tag ${tagCls(x.srcTag)}">${esc(x.srcTag)}</span>` : ''}
+            ${x.srcTag ? `<span class="tag ${tagCls(x.srcTag)}">${esc(App.nbTag ? App.nbTag(x.srcTag) : x.srcTag)}</span>` : ''}
             ${x.tomorrow ? '<span class="tag tag-pur">明日背</span>' : ''}
             <span class="sp"></span>
             <button class="btn btn-xs btn-gh" data-nb="say">🔊</button>
@@ -54,7 +54,7 @@ const ViewNotebook = {
             <button class="btn btn-xs btn-warn" data-nb="del">删除</button>
           </div>`).join('')
         : `<div class="empty"><svg viewBox="0 0 24 24" class="ic"><path d="M19 21l-7-4-7 4V5a2 2 0 012-2h10a2 2 0 012 2z"/></svg>
-          <p>${f === 'all' ? '生词本是空的，去阅读划线或背单词时加入吧' : '该分类下暂无单词'}</p></div>`}
+          <p>${f === 'all' ? '生词本是空的，去阅读里划词或背单词时加入吧' : '该分类下暂无单词'}</p></div>`}
       </div>
     </div>`;
 
@@ -103,7 +103,7 @@ const ViewNotebook = {
       ${it.ex ? `<div class="sec-t">例句</div><div class="ex-item">${esc(it.ex)}</div>` : ''}
       <div class="sec-t">来源分析</div>
       <div class="src" style="border-left-color:var(--pri);padding-left:9px;background:var(--card2);border-radius:0 8px 8px 0;font-size:12.5px;color:var(--tx2);line-height:1.75">
-        <b>来源</b>：${esc(it.srcTag || '手动添加')}<br>
+        <b>来源</b>：${esc(App.nbTag ? App.nbTag(it.srcTag) : (it.srcTag || '手动添加'))}<br>
         <b>时间</b>：${it.addedAt ? esc(it.addedAt.replace('T', ' ').slice(0, 16)) : '—'}<br>
         <b>分析</b>：${esc(it.origin || '')}</div>
       <div class="row" style="margin-top:16px;gap:7px">

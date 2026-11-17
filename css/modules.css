@@ -1,17 +1,24 @@
 
 
 
-/* 阅读题目两列：标题高度对齐，选项从同一基线开始；最后一道落单的题居中占整行 */
-@media (min-width:700px){
+/* 阅读题目两列：标题高度对齐，选项从同一基线开始；最后一道落单的题居中占整行。
+   这些规则只在「真的是两列」时成立：.two-col 在 ≤1180px 会折成单列（见文末响应式），
+   那时若还套用“落单题居中 max-width:760px”，就会出现最后一题比前面所有题窄一截、
+   左侧缩进不一致的排版 bug（平板 1024px 实测）。单列布局下所有题目一律通栏左对齐。 */
+@media (min-width:1181px){
   .two-col > .q-item:last-child:nth-child(odd){grid-column:1 / -1;width:100%;max-width:760px;margin-left:auto;margin-right:auto}
-}
-
-@media (min-width:700px){
   .two-col{align-items:start}
   .two-col .qt{min-height:2.9em}
   .two-col .q-item{display:flex;flex-direction:column}
   .two-col .q-opt{margin-bottom:6px}
 }
+
+/* 侧栏题卡（真题/选词/匹配/完形的做题模式）在任意宽度都是单列：
+   取消落单题居中缩窄与题干最小高度，保证与其它题目同宽、左对齐。 */
+.read-question-side #qWrap > .q-item:last-child:nth-child(odd){
+  grid-column:auto;width:auto;max-width:none;margin-left:0;margin-right:0;
+}
+.read-question-side #qWrap .qt{min-height:0}
 
 /* 做题模式手写笔记 */
 .read-note-host{position:relative}
@@ -205,6 +212,28 @@ svg.ic-fill path:last-child{fill:none;stroke:currentColor;stroke-width:1.8;strok
 .tipbox{margin-top:9px;padding:10px 13px;border-radius:11px;background:var(--pri-l);color:var(--tx2);
   font-size:12.5px;line-height:1.7;border-left:3px solid var(--pri)}
 
+/* 传统阅读：教辅式解析【定位】【原文】【精析】【避错】（2026-11-12 用户反馈） */
+.read-analysis{background:var(--card);border:1px solid var(--line2);border-left:3px solid var(--pri)}
+.read-analysis.is-right{border-left-color:var(--ok)}
+.read-analysis.is-wrong{border-left-color:var(--err)}
+.read-analysis.is-pending{background:var(--card2);border-left-color:var(--line2)}
+.read-analysis .ra-badge.is-warn{background:var(--warn-l);color:var(--warn)}
+.read-analysis .ra-conflict{margin:4px 0 4px 48px;padding:5px 9px;border-radius:8px;background:var(--warn-l);color:var(--warn);font-size:12px;line-height:1.65}
+.read-analysis .ra-head{display:flex;align-items:center;gap:8px;margin-bottom:6px}
+.read-analysis .ra-head b{font-size:13px;color:var(--tx)}
+.read-analysis .ra-badge{font-size:11px;line-height:1.6;padding:0 8px;border-radius:999px;background:var(--pri-l);color:var(--pri);font-weight:650}
+.read-analysis .ra-badge.is-ai{background:var(--ok-l);color:var(--ok)}
+.read-analysis .ra-row{display:grid;grid-template-columns:40px minmax(0,1fr);gap:8px;margin:5px 0;line-height:1.75}
+.read-analysis .ra-row>b{color:var(--pri);font-weight:700;white-space:nowrap;font-size:12.5px}
+.read-analysis .ra-row blockquote{margin:0;padding:6px 10px;border-left:2px solid var(--line2);background:var(--card2);border-radius:0 8px 8px 0;color:var(--tx2);font-size:12.5px;line-height:1.7}
+.read-analysis .ra-unlocated{display:block;margin-top:2px;color:var(--warn);font-size:11px}
+.read-analysis .ra-wrongs{display:flex;flex-direction:column;gap:4px}
+.read-analysis .ra-wrong{display:grid;grid-template-columns:16px minmax(0,1fr) auto;gap:6px;align-items:start;font-size:12.5px;color:var(--tx2)}
+.read-analysis .ra-wrong>i{font-style:normal;font-weight:700;color:var(--tx3)}
+.read-analysis .ra-wrong.is-picked>i{color:var(--err)}
+.read-analysis .ra-wrong>em{font-style:normal;font-size:10.5px;line-height:1.6;color:var(--err);border:1px solid var(--err);border-radius:999px;padding:0 6px;white-space:nowrap}
+.read-analysis .ra-pending{margin:2px 0 0;color:var(--tx2);line-height:1.7}
+
 /* 改 / 写 切换 */
 .mode-switch{display:flex;gap:0;border-radius:12px;overflow:hidden;border:1px solid var(--line2)}
 .mode-switch button{padding:8px 20px;font-size:13px;font-weight:650;color:var(--tx2);background:var(--card);transition:.16s}
@@ -285,6 +314,10 @@ svg.ic-fill path:last-child{fill:none;stroke:currentColor;stroke-width:1.8;strok
 .two-col{display:grid;grid-template-columns:1fr 1fr;gap:11px}
 .two-col .q-item{margin-bottom:12px}
 .two-col .qt{font-size:13.5px}
+/* 修改模式：传统阅读题单列横排，解析卡占满整行（2026-11-12 用户反馈：两列时解析被挤成窄条） */
+.read-q-list{display:flex;flex-direction:column;gap:16px}
+.read-q-list .q-item{margin-bottom:0}
+.read-q-list .qt{min-height:0}
 .timer-box{display:flex;align-items:center;gap:9px;padding:9px 15px;border-radius:13px;background:var(--card);
   border:1px solid var(--line);box-shadow:var(--sh)}
 .timer-box .t{font-size:21px;font-weight:800;font-family:Consolas,monospace;letter-spacing:.5px}
@@ -302,8 +335,24 @@ svg.ic-fill path:last-child{fill:none;stroke:currentColor;stroke-width:1.8;strok
 /* 划线分析面板 */
 /* 阅读页置顶条约 54px 高：分析面板必须让开，否则会盖住计时/总分条（P1） */
 .an-panel{position:sticky;top:64px;max-height:calc(100vh - 104px);overflow-y:auto}
+/* 划线分析所在列：让包裹层撑满整行高度，内部的 sticky 才有滚动行程。
+   （直接给 grid item 设 sticky 时，若该 item 高度=自身内容高度，就没有可滚动的行程）*/
+.an-side{align-self:stretch;min-width:0}
+@media (min-width:1181px){
+  .an-side>.an-panel{position:sticky;top:72px;z-index:2;max-height:calc(100vh - 96px)}
+}
+/* 词性翻译面板标题行：单词 + 音标 + 朗读按钮同一行（2026-11-12 用户反馈：
+   原来单词独行、音标缺失，「读」按钮被负 margin 吊在下面，视觉上像断了）。*/
 .an-word{font-size:26px;font-weight:800;font-family:Georgia,serif;color:var(--tx)}
-.an-ph{font-family:var(--ipa);color:var(--pri);font-size:13.5px}
+.an-word-h{display:flex;align-items:baseline;gap:10px;flex-wrap:wrap;
+  padding-bottom:9px;margin-bottom:10px;border-bottom:1px solid var(--line)}
+.an-word-h .an-word{line-height:1.25;word-break:break-word}
+.an-ph{font-family:var(--ipa);color:var(--pri);font-size:14px;line-height:1.5;letter-spacing:.2px}
+.an-word-h .an-ph{flex:none}
+.an-word-h .an-ph-none{font-family:inherit;font-size:12px;color:var(--tx3);opacity:.85}
+.an-defs{font-size:13.5px;line-height:1.7}
+.an-defs .pos-line:first-child{padding-top:0}
+.an-actions{margin-top:12px;gap:6px}
 .pos-line{display:flex;gap:9px;padding:6px 0;border-bottom:1px dashed var(--line);font-size:13.5px}
 .pos-line:last-child{border:none}
 .pos-line .t{color:var(--pri);font-weight:700;min-width:44px;flex:none;font-size:12.5px}
@@ -440,7 +489,7 @@ svg.ic-fill path:last-child{fill:none;stroke:currentColor;stroke-width:1.8;strok
   display:flex;align-items:center;gap:14px;flex-wrap:wrap;
   margin-bottom:12px;padding:10px 14px;border-radius:13px;
   background:var(--card);border:1px solid var(--line);
-  position:sticky;top:0;z-index:5;backdrop-filter:blur(8px);
+  position:sticky;top:0;z-index:20;backdrop-filter:blur(8px);
 }
 .rd-topbar .timer-box{margin-bottom:0;padding:7px 12px}
 .rd-topbar .timer-box .t{font-size:18px}
@@ -589,11 +638,17 @@ svg.ic-fill path:last-child{fill:none;stroke:currentColor;stroke-width:1.8;strok
 .read-directions{margin:0 0 12px;padding:9px 12px;border-radius:9px;background:var(--pri-l);color:var(--tx2);font-size:12.5px;line-height:1.55}
 .read-word-bank{display:grid;grid-template-columns:repeat(auto-fill,minmax(112px,1fr));gap:6px;padding:11px;margin-bottom:16px;border:1px solid var(--line);border-radius:11px;background:var(--card2)}
 .read-word-bank>b{grid-column:1/-1;font-size:12px;color:var(--tx3);margin-bottom:2px}
-.read-word-bank span{display:flex;align-items:center;gap:7px;min-width:0;padding:6px 8px;border:1px solid var(--line);border-radius:8px;background:var(--card);font-size:12.5px;color:var(--tx2)}
+/* 只作用在词库格子（直接子级 span）上：修改模式里格子里还有可点的单词 span，
+   用后代选择器会把每个单词也套上边框，变成一个个小方块 */
+.read-word-bank>span{display:flex;align-items:center;gap:7px;min-width:0;padding:6px 8px;border:1px solid var(--line);border-radius:8px;background:var(--card);font-size:12.5px;color:var(--tx2)}
 .read-word-bank strong{display:grid;place-items:center;flex:none;width:21px;height:21px;border-radius:6px;background:var(--pri-l);color:var(--pri);font-size:11px}
 .read-word-bank em{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-style:normal}
 /* 词库条吸顶时要落在置顶计时条下面（原来 top:8px 会盖住计时条） */
-.read-section-a-bank-wrap{position:sticky;top:64px;z-index:5;margin:0 0 13px}
+.read-section-a-bank-wrap{position:sticky;top:64px;z-index:10;margin:0 0 13px}
+/* 修改模式下词库改为随页面滚动（用户反馈：吸顶词库挡住了右侧划线分析）；
+   做题模式仍需吸顶，方便对照选项作答 */
+.read-section-a-bank-wrap.is-static{position:static;top:auto;z-index:auto}
+.read-section-a-bank-wrap.is-static .read-word-bank.read-section-a-bank{box-shadow:none}
 .read-word-bank.read-section-a-bank{display:flex;flex-wrap:wrap;justify-content:center;align-items:center;gap:7px;max-width:1180px;margin:0 auto;padding:10px 14px;box-shadow:0 8px 22px rgba(31,52,93,.1)}
 .read-word-bank.read-section-a-bank>b{flex:0 0 100%;text-align:center;margin:0 0 1px}
 .read-word-bank.read-section-a-bank>span{flex:0 1 auto;max-width:180px}
@@ -698,6 +753,61 @@ svg.ic-fill path:last-child{fill:none;stroke:currentColor;stroke-width:1.8;strok
   .rd-layout.read-layout-matching-exam .read-match-question-card>.card-b{max-height:none;min-height:0;overflow:visible;overscroll-behavior:auto}
 }
 
+/* ===== 2026-11 阅读反馈修复：词性释义分组 / 本段正确选项 / 语法语义判断 / 搭配释义 ===== */
+.read-bank-analysis{margin:8px 0 0;padding:10px 12px;border:1px dashed var(--line2);border-radius:10px;background:var(--card)}
+.read-bank-analysis>summary{cursor:pointer;font-size:12.5px;font-weight:700;color:var(--tx2);list-style:none}
+.read-bank-analysis>summary::-webkit-details-marker{display:none}
+.read-bank-analysis>summary small{font-weight:400;color:var(--tx3);margin-left:8px}
+.rba-row{display:flex;gap:9px;padding:6px 0;border-bottom:1px dashed var(--line);font-size:12.5px;line-height:1.7}
+.rba-row:last-child{border-bottom:none}
+.rba-row>b{flex:none;min-width:52px;color:var(--pri);font-size:12px;padding-top:2px}
+.rba-row>div{flex:1;min-width:0}
+.rba-item{display:inline-flex;align-items:baseline;gap:3px;margin:0 12px 4px 0}
+.rba-item i{font-style:normal;color:var(--pri);font-weight:700}
+.rba-item em{font-style:normal;color:var(--tx2)}
+.rba-item em.rba-ctx{margin-left:5px;padding:1px 6px;border-radius:6px;background:var(--pri-l);color:var(--pri)}
+.wb-hint{font-weight:400;color:var(--tx3);margin-left:6px}
+.read-word-bank .wb-item [data-w]{display:inline;padding:0;margin:0;border:0;border-radius:0;background:none;font-size:inherit;color:inherit;gap:0;cursor:text}
+.read-word-bank .wb-item [data-w]:hover{color:var(--pri);text-decoration:underline dotted}
+.para-tr-answers{margin-top:8px;padding-top:7px;border-top:1px dashed var(--line);display:flex;flex-wrap:wrap;gap:6px 12px;font-size:12px;color:var(--tx2)}
+.para-tr-answers .t{color:var(--tx3)}
+.para-tr-answers .ans{display:inline-flex;gap:4px;align-items:baseline}
+.para-tr-answers .ans b{color:var(--pri)}
+.para-tr-answers .ans i{font-style:normal;color:var(--tx3);margin-left:3px}
+.sa-judge{margin-top:6px;line-height:1.7}
+.sa-judge>b{color:var(--pri);margin-right:6px}
+.sa-judge.sa-pending{color:var(--tx3)}
+.section-a-explain .sa-pos{font-style:normal;color:var(--tx3);margin-left:8px;font-size:11.5px}
+.section-a-explain .sa-conflict{display:block;margin-top:4px;color:var(--warn);font-size:11.5px}
+.rd-q-verdict{display:block;margin-top:3px;font-size:11.5px;color:var(--tx3)}
+.read-special-question.right{border-color:var(--ok);background:var(--ok-l)}
+.read-special-question.wrong{border-color:var(--err);background:var(--err-l)}
+.read-special-question.right .rd-q-verdict{color:var(--ok)}
+.read-special-question.wrong .rd-q-verdict{color:var(--err)}
+.rd-q-explain{border:none;background:transparent;padding:0;margin-top:6px}
+/* 选词填空：一段多空时只展开一题（2026-11 用户反馈图2） */
+.section-a-explain-details{margin-top:8px;border:1px solid var(--line);border-left:3px solid var(--warn);border-radius:9px;background:var(--card2);overflow:hidden}
+.section-a-explain-details.right{border-left-color:var(--ok)}
+.section-a-explain-details.wrong{border-left-color:var(--err)}
+.sa-explain-summary{cursor:pointer;padding:8px 11px;font-size:12.5px;line-height:1.55;color:var(--tx2);list-style:none}
+.sa-explain-summary::-webkit-details-marker{display:none}
+.sa-explain-summary::before{content:'▸ ';color:var(--tx3)}
+.section-a-explain-details[open] .sa-explain-summary::before{content:'▾ '}
+.section-a-explain-details .section-a-explain{margin:0;border:0;border-top:1px dashed var(--line);border-radius:0;background:transparent}
+.section-a-explain-details .section-a-explain-head{display:none}
+.section-a-explain .sa-sense{font-style:normal;margin-left:8px;color:var(--pri);font-size:12px;background:var(--pri-l);padding:1px 6px;border-radius:6px}
+/* 段落匹配：答错整卡红框、答对绿框（2026-11 用户反馈图3） */
+.read-match-review.review-right{border-color:var(--ok);background:var(--ok-l)}
+.read-match-review.review-wrong{border-color:var(--err);border-left:4px solid var(--err);background:var(--err-l);box-shadow:0 0 0 1px var(--err) inset}
+.read-match-review.review-wrong b{color:var(--err)}
+.read-match-review.review-right b{color:var(--ok)}
+.an-colloc-row{display:inline-flex;flex-wrap:wrap;gap:6px}
+.sec-t-tip{font-weight:400;font-size:11px;color:var(--tx3);margin-left:4px}
+.colloc-meaning{display:none;margin:6px 0 0;padding:7px 10px;border-radius:8px;background:var(--pri-l);font-size:12.5px;line-height:1.6;color:var(--tx2)}
+.colloc-meaning.on{display:block}
+.colloc-meaning b{color:var(--pri);margin-right:7px}
+.colloc-meaning .colloc-miss{color:var(--warn)}
+
 /* 划线分析的音标与发音按钮 */
 .ai-say{
   display:inline-flex;align-items:center;gap:3px;flex:none;
@@ -705,7 +815,9 @@ svg.ic-fill path:last-child{fill:none;stroke:currentColor;stroke-width:1.8;strok
 }
 .ai-say .ic{width:13px;height:13px;fill:none;stroke:currentColor;stroke-width:2;
   stroke-linecap:round;stroke-linejoin:round}
-.an-say{margin:-24px 0 6px auto;display:inline-flex;align-items:center;gap:3px}
+.an-say{display:inline-flex;align-items:center;gap:3px}
+/* 朗读按钮靠右对齐标题行，不再用负 margin 硬顶（会压到下面释义） */
+.an-word-h .an-say{margin-left:auto;align-self:center}
 .an-say .ic{width:13px;height:13px;fill:none;stroke:currentColor;stroke-width:2;
   stroke-linecap:round;stroke-linejoin:round}
 
@@ -1044,6 +1156,7 @@ svg.ic-fill path:last-child{fill:none;stroke:currentColor;stroke-width:1.8;strok
   .vocab-hero{grid-template-columns:1fr}
   .rd-layout,.wr-layout{grid-template-columns:1fr}
   .an-panel{position:static;max-height:none}
+  .an-side>.an-panel{position:static;max-height:none}
   .two-col{grid-template-columns:1fr}
   .start-garden-row{grid-template-columns:1fr!important}
 }
