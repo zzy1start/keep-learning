@@ -14,6 +14,8 @@ const CONTENT = path.join(ROOT, 'data', 'content');
 const AUDIO = path.join(ROOT, 'assets', 'audio');
 /* --no-audio：官方 lite 包不包含离线音频（音频由用户本地生成，避免再分发 Edge TTS 产物） */
 const NO_AUDIO = process.argv.includes('--no-audio') || process.env.KEEP_LRN_NO_AUDIO === '1';
+/* --no-models：slim 包不包含 Piper 离线语音模型（258MB）。缺模型时应用回落到系统 TTS，不崩溃 */
+const NO_MODELS = process.argv.includes('--no-models') || process.env.KEEP_LRN_NO_MODELS === '1';
 const report = { builtAt: new Date().toISOString(), audio: '', files: 0, bytes: 0, maxFile: '', maxBytes: 0, removedPersonal: 0, removedTitles: [], privacy: [] };
 
 function copyDir(src, dst, filter = () => true) {
@@ -45,7 +47,8 @@ fs.mkdirSync(OUT, { recursive: true });
 for (const f of ['index.html', 'manifest.webmanifest', 'favicon.svg']) copyFile(f);
 for (const d of ['css', 'js', 'data']) copyDir(path.join(ROOT, d), path.join(OUT, d), n => n !== '.' && n !== '..');
 copyDir(path.join(ROOT, 'assets'), path.join(OUT, 'assets'),
-  n => n !== 'english-app.ico' && !(NO_AUDIO && n === 'audio'));
+  n => n !== 'english-app.ico' && !(NO_AUDIO && n === 'audio') && !(NO_MODELS && n === 'models'));
+if (NO_MODELS) report.models = 'excluded (--no-models)';
 if (NO_AUDIO) {
   report.audio = 'excluded (--no-audio)';
 } else if (fs.existsSync(AUDIO)) {
