@@ -9,8 +9,8 @@
 |---|---|
 | 版本 | versionCode **74** / versionName **1.1.50** |
 | 安装包 | `KeepLearning-Setup-1.1.50.exe` |
-| 大小 | **34,420,223 B**（约 32.8 MB） |
-| SHA-256 | `27225eb13029d16e674dc66a6456ee5d9b59ccb68e8c878219a353c23bbfe72a` |
+| 大小 | **34,425,563 B**（约 32.8 MB） |
+| SHA-256 | `cb0143dff9df80660b8d402231fefdd6177ce87aad6ff6db970f0396f27fc497` |
 | 安装位置 | `%LOCALAPPDATA%\KeepLearning`（当前用户，无需管理员） |
 | 安装后占用 | **305 个文件 / 129.2 MB** |
 | 卸载 | 设置 → 应用 → Keep Learning，或开始菜单「卸载」 |
@@ -61,6 +61,7 @@ makensis /INPUTCHARSET UTF8 work\win-package\installer-abs.nsi
 ## 5. 已知限制 / 未验证
 
 - **未做代码签名**：首次运行触发 SmartScreen「更多信息 → 仍要运行」，属预期。
+- 安装包与启动器已带版本信息（属性 → 详细信息：Keep Learning 1.1.50 / Keep Learning Project），但**没有 Authenticode 签名**，不能证明发布者身份。
 - 沙箱限制下**桌面/开始菜单快捷方式创建未能端到端验证**（写入 Desktop/Start Menu 被拒绝）；
   安装包内 `CreateShortcut` 指令正常，需在无沙箱环境复测一次。
 - **Android APK 本轮未重打**；现有 1.1.49 lite 包 304 MB，其中 258 MB 是 Piper 模型，
